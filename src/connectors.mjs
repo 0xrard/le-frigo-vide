@@ -279,7 +279,25 @@ export const FALLBACK_NEWS = [
   { title: 'The world kept turning, indifferently, while your rice went cold.', source: 'local-fallback (no live news)', url: null },
   { title: 'Scientists confirm the universe is expanding; your leftovers are not.', source: 'local-fallback (no live news)', url: null },
   { title: 'Another week, another headline nobody will remember by Thursday.', source: 'local-fallback (no live news)', url: null },
+  { title: 'Global coffee prices just jumped 12% while thousands sat in traffic, going nowhere.', source: 'local-fallback (no live news)', url: null },
+  { title: 'The forecast promised rain again, and the clouds kept their promise.', source: 'local-fallback (no live news)', url: null },
+  { title: 'Commuters spent a collective lifetime in traffic today, and the evening rush has not even started.', source: 'local-fallback (no live news)', url: null },
 ];
+
+// The seeded fallback headline is cached, but news goes stale: a cached
+// headline older than this is replaced by a fresh random one. (Before this,
+// the cache never expired, so the first headline ever cached — "the world
+// kept turning..." — was served forever, no matter how many seeds existed.)
+export const NEWS_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// Pure helper, unit-tested: is a news_cache fetched_at (SQLite datetime
+// 'now', UTC) older than the TTL? Missing or unparsable counts as stale.
+export function isNewsStale(fetchedAt, nowMs = Date.now()) {
+  if (!fetchedAt) return true;
+  const t = new Date(String(fetchedAt).replace(' ', 'T') + 'Z').getTime();
+  if (Number.isNaN(t)) return true;
+  return nowMs - t >= NEWS_CACHE_TTL_MS;
+}
 
 export async function apifyFetchNews() {
   const gateway = await discoverGateway();
@@ -290,14 +308,23 @@ export async function apifyFetchNews() {
   // news_cache / seeded fallback — same honest behaviour as the live
   // Sprite build, whose news stage also reports local-baseline.
   void gateway;
-  // Local fallback: most recent cached news, else seeded grim headline.
+  // Local fallback: most recent cached news while it is fresh; when it
+  // goes stale (older than NEWS_CACHE_TTL_MS), pick a fresh random seed —
+  // different from the cached one when possible — and cache that instead.
+  // The old daily rotation never rotated in practice, because a cached row
+  // was served forever and the seed path only ran on an empty cache.
   try {
     const cached = getLatestNews();
-    if (cached?.title) {
+    if (cached?.title && !isNewsStale(cached.fetched_at)) {
       return { ok: false, via: 'local-fallback', reason: 'apify connector not installed or timed out; serving cached news', news: { title: cached.title, source: cached.source || 'news_cache', url: cached.payload?.url || null } };
     }
+    const pool = FALLBACK_NEWS.filter((n) => n.title !== cached?.title);
+    const candidates = pool.length ? pool : FALLBACK_NEWS;
+    const seed = candidates[Math.floor(Math.random() * candidates.length)];
+    try { cacheNews({ title: seed.title, source: seed.source, payload: seed }); } catch {}
+    return { ok: false, via: 'local-fallback', reason: 'apify connector not installed; serving seeded fallback headline', news: seed };
   } catch {}
-  const seed = FALLBACK_NEWS[Math.floor(Date.now() / 86_400_000) % FALLBACK_NEWS.length];
+  const seed = FALLBACK_NEWS[Math.floor(Math.random() * FALLBACK_NEWS.length)];
   try { cacheNews({ title: seed.title, source: seed.source, payload: seed }); } catch {}
   return { ok: false, via: 'local-fallback', reason: 'apify connector not installed; serving seeded fallback headline', news: seed };
 }

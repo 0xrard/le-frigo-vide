@@ -13,7 +13,6 @@ const I18N = {
     ingredientsLabel: 'What is in the fridge?',
     generate: 'Ask Chef Jean-Paul',
     generating: 'The chef is thinking. Slowly.',
-    dreadLabel: 'Global Dread Pairing:',
     recurringLabel: 'Recurring culprit:',
     receiptTitle: 'Struk Dosa Kuliner',
     dignityLabel: 'Dignity loss',
@@ -42,7 +41,6 @@ const I18N = {
     ingredientsLabel: 'Apa isi kulkasnya?',
     generate: 'Tanya Chef Jean-Paul',
     generating: 'Koki sedang berpikir. Pelan-pelan.',
-    dreadLabel: 'Global Dread Pairing:',
     recurringLabel: 'Pelaku berulang:',
     receiptTitle: 'Struk Dosa Kuliner',
     dignityLabel: 'Kehilangan martabat',
@@ -76,7 +74,6 @@ function applyLang() {
   $('menu-subtitle').textContent = s.menuSubtitle;
   $('ingredients-label').textContent = s.ingredientsLabel;
   $('generate-btn').textContent = s.generate;
-  $('dread-label').textContent = s.dreadLabel;
   $('recurring-label').textContent = s.recurringLabel;
   $('receipt-title').textContent = s.receiptTitle;
   $('dignity-label').textContent = s.dignityLabel;
@@ -172,11 +169,11 @@ function renderMenu(result) {
     prep.append(li);
   }
   $('sommelier-text').textContent = menu.sommelier || '';
-  $('chef-note').textContent = menu.chef_note || '';
+  // No chef-note or dread line on the card: the headline already lives
+  // inside world_context, and the closing line duplicated the sommelier.
+  // (chef_note still ships in the menu data and is asserted in tests.)
   $('quote-text').textContent = menu.quote ? `"${menu.quote}"` : '';
   $('quote-author').textContent = menu.quote_author ? `— ${menu.quote_author}` : '';
-  $('dread-text').textContent = menu.dread_pairing || result.dread?.title || '—';
-  $('dread-via').textContent = result.dread_via ? `(${result.dread_via})` : '';
   $('recurring-text').textContent = menu.recurring_culprit || (result.recurring?.[0]?.ingredient ?? '—');
   $('dignity-value').textContent = `${result.dignity_loss_percentage}%`;
   $('dignity-bar').style.width = `${result.dignity_loss_percentage}%`;

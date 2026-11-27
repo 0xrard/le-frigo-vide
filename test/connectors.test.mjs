@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const { extractConnections, extractJsonObject, discoverGateway, callOpenRouter, GATEWAY_LIST_URL } = await import('../src/connectors.mjs');
+const { extractConnections, extractJsonObject, discoverGateway, callOpenRouter, GATEWAY_LIST_URL, FALLBACK_NEWS, isNewsStale, NEWS_CACHE_TTL_MS } = await import('../src/connectors.mjs');
 
 // The exact response shape proven live on Sprite le-frigo-vide, 2026-11-27:
 // GET https://api.sprites.dev/v1/gateway/list returns HTTP 200 with
@@ -89,6 +89,32 @@ test('callOpenRouter gives up honestly after a second 429', async () => {
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+test('FALLBACK_NEWS has 5-6 grim variations, each embeddable mid-sentence', () => {
+  // User 2026-11-27: Outside World Context must not always say "the world
+  // kept turning...". Headlines are embedded after "remember that ...", so
+  // they must read as a clause (lowercase-able first word, one sentence).
+  assert.ok(FALLBACK_NEWS.length >= 5 && FALLBACK_NEWS.length <= 6, `expected 5-6 headlines, got ${FALLBACK_NEWS.length}`);
+  const titles = new Set();
+  for (const n of FALLBACK_NEWS) {
+    assert.ok(typeof n.title === 'string' && n.title.length > 30, `headline too short: ${n.title}`);
+    assert.ok(n.title.endsWith('.'), `headline must end with a period (stripped on embed): ${n.title}`);
+    assert.ok(n.source, 'headline needs a source label');
+    assert.ok(!titles.has(n.title), `duplicate headline: ${n.title}`);
+    titles.add(n.title);
+  }
+  assert.ok(FALLBACK_NEWS.some((n) => /coffee/i.test(n.title)), 'one headline about coffee prices');
+  assert.ok(FALLBACK_NEWS.some((n) => /traffic/i.test(n.title)), 'one headline about traffic');
+});
+
+test('isNewsStale: fresh within the hour, stale after it, stale when missing', () => {
+  const now = Date.now();
+  const fmt = (ms) => new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
+  assert.equal(isNewsStale(fmt(now - 10 * 60 * 1000), now), false, '10 minutes old is fresh');
+  assert.equal(isNewsStale(fmt(now - NEWS_CACHE_TTL_MS - 1000), now), true, 'older than TTL is stale');
+  assert.equal(isNewsStale(null, now), true, 'missing timestamp is stale');
+  assert.equal(isNewsStale('not a date', now), true, 'unparsable timestamp is stale');
 });
 
 test('extractJsonObject handles fenced, prose-wrapped and bare JSON', () => {

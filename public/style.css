@@ -37,11 +37,10 @@ body { margin:0; background:#ece5d3; color:var(--ink); font-family:Georgia,'Time
 .menu-section p { margin:0; line-height:1.7; }
 .prep-list { padding-left:22px; margin:0; }
 .prep-list li { margin-bottom:12px; line-height:1.7; }
-.chef-note { border-top:1px solid #d8cba6; border-bottom:1px solid #d8cba6; padding:12px 0; line-height:1.6; }
 blockquote { margin:16px 0; font-style:italic; }
 blockquote p { margin:0 0 4px; }
 blockquote cite { color:var(--muted); font-style:normal; }
-.dread, .recurring { font-size:14px; line-height:1.5; }
+.recurring { font-size:14px; line-height:1.5; }
 .checkpoint-note { background:#fff3cd; border:1px solid #d4a017; padding:10px; font-size:14px; }
 
 /* RIGHT — thermal receipt + X-Ray */

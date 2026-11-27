@@ -154,14 +154,14 @@ export function localMenu({ ingredients, lang = 'en', quote, dread, recurring, d
     `Panaskan sedikit minyak di wajan terlebar yang kau punya. Masukkan ${main} — sekeras hatimu menghadapi ekspektasi keluarga di makan malam Thanksgiving — dan biarkan panas melakukan apa yang tidak mau dilakukan waktu.`,
     `Masukkan ${second || 'sisa apa pun yang masih ada'} dan aduk cepat, sebelum ia menyadari nasibnya — persis seperti rencanamu di awal tahun yang kini entah ke mana.`,
     third
-      ? `Tuangkan ${third} sebagai metafora kemarahan yang tertahan. Aduk hingga merata dan sajikan di atas piring retak favoritmu.`
+      ? `Tambahkan ${third} sebagai metafora kemarahan yang tertahan. Aduk hingga merata dan sajikan di atas piring retak favoritmu.`
       : `Kecilkan api dan biarkan semuanya melunak bersama selama dua menit. Jangan terburu-buru; kulkas sudah menunggu berhari-hari, ia bisa menunggu dua menit lagi.`,
     `Sajikan tanpa hiasan. Tidak ada yang perlu disembunyikan dan tidak ada yang perlu dirayakan — hanya hidangan hangat, yang berarti lebih dari ketiadaan.`,
   ] : [
     `Heat a splash of oil in the widest pan you own. Add the ${main} — as rigid as your heart facing family expectations at Thanksgiving dinner — and let the heat do what time refused to do.`,
     `Add the ${second || 'whatever else remains'} and stir quickly, before it realizes its fate — just like your plans from the start of the year, which are now nowhere to be found.`,
     third
-      ? `Pour in the ${third} as a metaphor for the anger you have been holding back. Stir until it is evenly distributed, then serve it on your favorite cracked plate.`
+      ? `Add the ${third} as a metaphor for the anger you have been holding back. Stir until it is evenly distributed, then serve it on your favorite cracked plate.`
       : `Lower the heat and let everything soften together for two minutes. Do not rush it; the fridge waited days, it can wait two more minutes.`,
     `Plate it without garnish. There is nothing to hide and nothing to celebrate — only a meal, served warm, which is more than nothing.`,
   ];
