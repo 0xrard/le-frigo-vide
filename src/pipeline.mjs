@@ -235,13 +235,13 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
   try {
     const res = await callOpenRouter({
       model: 'openrouter/free',
-      // 45s + capped output: the free model needs >20s for a full menu
+      // 60s + capped output: the free model needs >20s for a full menu
       // (proven by the 20000ms abort in the Sprite service log, 2026-11-27),
-      // and a shorter completion finishes sooner. max_tokens 700 keeps the
-      // menu complete (title + 2 short courses + note) while cutting the
-      // long tail of a slow free model.
-      timeoutMs: 45000,
-      maxTokens: 700,
+      // and the richer prompt (2-3 sentences per course) needs more room
+      // than 700 tokens. max_tokens 1000 keeps the menu complete while
+      // cutting the long tail of a slow free model.
+      timeoutMs: 60000,
+      maxTokens: 1000,
       messages: [
         { role: 'system', content: getSystemPrompt(language) },
         { role: 'user', content: buildUserPrompt({ ingredients, lang: language, quote, dread: null, recurring }) },

@@ -23,6 +23,7 @@ const I18N = {
     gatewayLabel: 'Sprites Gateway:',
     historyTitle: 'Recent meals',
     rejectionTitle: 'Refused.',
+    printReceipt: 'Print receipt',
     archiveHint: 'Box upload runs only when the Box connector is installed; otherwise the receipt downloads locally.',
     noMeals: 'No meals yet.',
     checkpoint: (id) => `Dignity loss above 80%. A checkpoint was requested: Lowest Point of the Week Snapshot (log #${id}).`,
@@ -44,6 +45,7 @@ const I18N = {
     gatewayLabel: 'Sprites Gateway:',
     historyTitle: 'Hidangan terakhir',
     rejectionTitle: 'Ditolak.',
+    printReceipt: 'Cetak struk',
     archiveHint: 'Upload Box hanya berjalan bila connector Box terpasang; jika tidak, struk diunduh secara lokal.',
     noMeals: 'Belum ada hidangan.',
     checkpoint: (id) => `Kehilangan martabat di atas 80%. Checkpoint diminta: Lowest Point of the Week Snapshot (log #${id}).`,
@@ -70,6 +72,7 @@ function applyLang() {
   $('gateway-label').textContent = s.gatewayLabel;
   $('history-title').textContent = s.historyTitle;
   $('rejection-title').textContent = s.rejectionTitle;
+  $('print-receipt-btn').textContent = s.printReceipt;
   $('archive-hint').textContent = s.archiveHint;
   $('lang-toggle').textContent = lang === 'en' ? 'EN / ID' : 'ID / EN';
 }
@@ -160,6 +163,7 @@ function renderMenu(result) {
     `LE FRIGO VIDE\nSTRUK DOSA KULINER\n----------------\nMeal #${result.meal_id}\n${menu.title}\nDignity loss: ${result.dignity_loss_percentage}%\nQuote: "${menu.quote || ''}" — ${menu.quote_author || ''}\nDread: ${menu.dread_pairing || 'none'}\nSynthesis: ${result.synthesis_via || 'local-fallback'}\nMemory: ${result.memory_via || 'local-fallback'}\n----------------\nMerci. Do not return.`;
   currentMealId = result.meal_id;
   $('archive-btn').disabled = false;
+  $('print-receipt-btn').disabled = false;
 }
 
 function renderRejection(result) {
@@ -171,6 +175,7 @@ function renderRejection(result) {
   $('receipt-content').textContent = `LE FRIGO VIDE\nREFUSED — Meal #${result.meal_id || '?'}\n${result.reason || ''}`;
   currentMealId = result.meal_id || null;
   $('archive-btn').disabled = true;
+  $('print-receipt-btn').disabled = true;
   $('checkpoint-note').hidden = true;
 }
 
@@ -226,8 +231,16 @@ async function archiveReceipt() {
   }
 }
 
+function printReceipt() {
+  if (!currentMealId) return;
+  // The receipt endpoint serves the printable HTML directly; the browser
+  // tab it opens is where the user prints (Ctrl/Cmd+P).
+  window.open(`/api/meals/${currentMealId}/receipt`, '_blank', 'noopener');
+}
+
 $('generate-btn').addEventListener('click', generate);
 $('archive-btn').addEventListener('click', archiveReceipt);
+$('print-receipt-btn').addEventListener('click', printReceipt);
 $('refresh-connected').addEventListener('click', refreshConnected);
 $('lang-toggle').addEventListener('click', () => {
   lang = lang === 'en' ? 'id' : 'en';

@@ -51,6 +51,10 @@ blockquote cite { color:var(--muted); font-style:normal; }
 .dignity-bar { height:100%; background:var(--red); transition:width .4s ease; }
 #receipt-content { white-space:pre-wrap; font-size:12px; line-height:1.5; background:#fafafa; border:1px dashed #999; padding:10px; margin:12px 0; }
 #archive-btn, #refresh-connected { font-family:inherit; padding:10px 12px; background:#fff; border:1px solid var(--ink); cursor:pointer; width:100%; }
+.menu-footer { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:18px; padding-top:12px; border-top:1px solid var(--line); font-size:13px; }
+.menu-footer a { color:var(--ink); }
+#print-receipt-btn { font-family:inherit; padding:8px 12px; background:#fff; border:1px solid var(--ink); cursor:pointer; }
+#print-receipt-btn:disabled { opacity:.5; cursor:not-allowed; }
 #archive-btn:disabled { opacity:.5; cursor:not-allowed; }
 .hint { font-size:12px; color:var(--muted); line-height:1.5; }
 .connector-list { list-style:none; padding:0; margin:10px 0; }
