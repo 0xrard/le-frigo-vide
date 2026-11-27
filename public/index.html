@@ -16,7 +16,6 @@
       <p class="tagline" id="tagline">A personal culinary agent. The fridge is empty. The chef is not impressed.</p>
     </div>
   </div>
-  <button id="lang-toggle" type="button" aria-label="Toggle language EN / ID">EN / ID</button>
 </header>
 
 <main class="layout">
@@ -31,6 +30,9 @@
 
         <label class="field-label" for="ingredients-input" id="ingredients-label">What is in the fridge?</label>
         <textarea id="ingredients-input" rows="3" placeholder="cold rice, one egg, wilted lettuce">cold rice, one egg, wilted lettuce</textarea>
+        <p class="lang-hint" id="lang-hint">English ingredient names only — e.g. raw chicken, cold rice, one egg.</p>
+
+        <div id="condition-row" class="condition-row" hidden></div>
 
         <div class="presets" aria-label="Presets">
           <button class="preset-btn" id="preset-1" type="button" data-ingredients="cold rice, one egg, wilted lettuce">1 — Cold rice &amp; egg</button>
@@ -40,6 +42,7 @@
         </div>
 
         <button id="generate-btn" type="button">Ask Chef Jean-Paul</button>
+        <button id="fridge-check-btn" class="secondary-btn" type="button">Log Fridge Check</button>
         <p class="status-line" id="status-line" role="status"></p>
 
         <div id="rejection-box" class="rejection-box" hidden>
@@ -48,6 +51,7 @@
         </div>
 
         <div id="menu-result" hidden>
+          <p id="safety-warning" class="safety-warning" hidden></p>
           <p id="score-line" class="score-line"></p>
           <section class="menu-section">
             <h3 id="section-aura-heading">Fridge Aura Analysis</h3>
@@ -113,6 +117,47 @@ after the chef speaks.</pre>
     </section>
   </aside>
 </main>
+
+<!-- Le Bulletin du Frigo — the Living Fridge Chronicle (vintage newspaper) -->
+<section id="chronicle" class="chronicle" aria-label="Le Bulletin du Frigo">
+  <header class="chronicle-masthead">
+    <p class="chronicle-kicker">Le Bulletin du Frigo</p>
+    <h2 id="chronicle-title">The Living Fridge Chronicle</h2>
+    <p class="chronicle-dateline" id="chronicle-dateline"></p>
+    <div class="chronicle-view" role="group" aria-label="Chronicle view">
+      <button id="view-mine-btn" class="view-btn view-btn-active" type="button">My Fridge</button>
+      <button id="view-demo-btn" class="view-btn" type="button">Sample Chronicle (Demo)</button>
+      <span id="demo-badge" class="demo-badge" hidden>DEMO DATA</span>
+    </div>
+    <p class="chronicle-demo-note" id="chronicle-demo-note" hidden></p>
+  </header>
+  <div id="investigation" class="investigation" hidden>
+    <h3 id="inv-title"></h3>
+    <p id="inv-suspect"></p>
+    <p id="inv-victim"></p>
+    <p id="inv-evidence"></p>
+    <p class="inv-verdict"><span id="inv-verdict-label"></span> <span id="inv-verdict"></span></p>
+  </div>
+  <div id="chronicle-columns" class="chronicle-columns">
+    <div class="chronicle-col">
+      <h3 id="col-survivors-heading">The Survivors</h3>
+      <ul id="survivors-list" class="dossier-list"></ul>
+    </div>
+    <div class="chronicle-col">
+      <h3 id="col-rescued-heading">The Rescued</h3>
+      <ul id="rescued-list" class="dossier-list"></ul>
+    </div>
+    <div class="chronicle-col">
+      <h3 id="col-departed-heading">The Departed</h3>
+      <ul id="departed-list" class="dossier-list"></ul>
+    </div>
+    <div class="chronicle-col">
+      <h3 id="col-ghosts-heading">The Ghosts</h3>
+      <ul id="ghosts-list" class="dossier-list"></ul>
+    </div>
+  </div>
+  <p class="chronicle-empty" id="chronicle-empty" hidden></p>
+</section>
 
 <footer><p>Le Frigo Vide · Fly.io Hacksgiving 2026</p></footer>
 <script src="/app.js" type="module"></script>

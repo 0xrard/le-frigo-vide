@@ -1,1 +1,15 @@
-{"description":"Le Frigo Vide — a personal culinary agent with an existentialist French bistro chef persona (Chef Jean-Paul). Turns sad fridge leftovers into fine-dining menus full of existential crisis. Fly.io Hacksgiving 2026.","engines":{"node":">=22.5"},"license":"MIT","name":"le-frigo-vide","private":true,"scripts":{"start":"node src/server.mjs","test":"node --test test/generate.test.mjs test/server.test.mjs test/connectors.test.mjs"},"type":"module","version":"1.0.0"}
+{
+  "description": "Le Frigo Vide \u2014 a personal culinary agent with an existentialist French bistro chef persona (Chef Jean-Paul). Turns sad fridge leftovers into fine-dining menus full of existential crisis. Fly.io Hacksgiving 2026.",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "license": "MIT",
+  "name": "le-frigo-vide",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --experimental-vm-modules --test test/generate.test.mjs test/server.test.mjs test/connectors.test.mjs test/chronicle.test.mjs test/safety.test.mjs test/migration.test.mjs test/frontend.test.mjs test/classifier.test.mjs"
+  },
+  "type": "module",
+  "version": "1.0.0"
+}

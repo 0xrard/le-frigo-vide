@@ -113,10 +113,53 @@ function gatewayBaseUrl(gateway, name) {
   return gateway?.connections?.[name]?.baseUrl || null;
 }
 
+// Last-execution record (audit v15 P2): `feature_execution` is the MODE
+// the feature is configured for — it must never be read as "the last
+// call succeeded". The actual outcome of the most recent operation in
+// THIS process lives here, per connector: { at, ok, via, reason }.
+// `ok` means the operation delivered its result (by whatever path);
+// `via` says which path it took. Null until the feature runs once.
+const LAST_EXECUTION = {};
+function recordExecution(name, result) {
+  LAST_EXECUTION[name] = {
+    at: new Date().toISOString(),
+    ok: Boolean(result?.ok),
+    via: result?.via || null,
+    reason: result?.reason || null,
+  };
+  return result;
+}
+
 export async function getConnectedStatus() {
   const gateway = await discoverGateway();
   const rawApiKeysInEnv = countRawApiKeysInEnv();
-  const status = (name, connected, via, note, extra = {}) => ({ name, connected, via, note, ...extra });
+  // Availability, mode and last result are SEPARATE fields (audits v14
+  // P2-F, v15 P2):
+  // `gateway_connected` — the gateway lists this connector;
+  // `feature_execution` — the MODE the feature is configured for ('live'
+  // only when the operation is wired to genuinely use the service,
+  // 'local-fallback' otherwise). A live MODE is not a successful call.
+  // `fallback_reason` — WHY the mode is a fallback (configuration);
+  // `last_execution` — WHAT the most recent operation actually did in
+  // this process (null until the feature runs once). `via` mirrors
+  // `feature_execution`. Pinecone and Apify are NEVER 'live': the gateway
+  // connection exists, but no Pinecone index and no Apify Actor are
+  // configured, so no query or run is ever sent — matching runs locally
+  // (cosine similarity over SQLite) and the dread pairing serves the
+  // local news_cache. Never claim a Pinecone lookup or an Apify scrape
+  // happened.
+  const status = (name, gatewayConnected, featureExecution, fallbackReason, note, extra = {}) => ({
+    name,
+    connected: gatewayConnected,
+    gateway_connected: gatewayConnected,
+    feature_execution: featureExecution,
+    via: featureExecution === 'live' ? 'sprites-gateway' : 'local-fallback',
+    fallback_reason: fallbackReason,
+    last_execution: LAST_EXECUTION[name] || null,
+    note,
+    ...extra,
+  });
+  const has = (n) => hasConnector(gateway, n);
   return {
     service: 'le-frigo-vide',
     rawApiKeysInEnv,
@@ -131,27 +174,33 @@ export async function getConnectedStatus() {
       error: gateway.error,
     },
     connectors: {
-      openrouter: status('openrouter', hasConnector(gateway, 'openrouter'),
-        hasConnector(gateway, 'openrouter') ? 'sprites-gateway' : 'local-fallback',
-        hasConnector(gateway, 'openrouter')
+      openrouter: status('openrouter', has('openrouter'),
+        has('openrouter') ? 'live' : 'local-fallback',
+        has('openrouter') ? null : 'openrouter connector not installed on this Sprite',
+        has('openrouter')
           ? 'OpenRouter reachable via Sprites Gateway (free model openrouter/free).'
           : 'OpenRouter not installed on this Sprite. Using honest local fallback: deterministic safety denylist + local menu synthesis. No key is used.',
         { model: 'openrouter/free', baseUrl: gatewayBaseUrl(gateway, 'openrouter') }),
-      pinecone: status('pinecone', hasConnector(gateway, 'pinecone'),
-        hasConnector(gateway, 'pinecone') ? 'sprites-gateway' : 'local-fallback',
-        hasConnector(gateway, 'pinecone')
-          ? 'Pinecone reachable via Sprites Gateway.'
+      pinecone: status('pinecone', has('pinecone'), 'local-fallback',
+        has('pinecone')
+          ? 'no Pinecone index configured — matching is local cosine over SQLite'
+          : 'pinecone connector not installed on this Sprite',
+        has('pinecone')
+          ? 'Pinecone wired (local-fallback active): reachable via Sprites Gateway, but no Pinecone index is configured, so matching runs locally — cosine similarity over SQLite ingredient_history + quotes seed.'
           : 'Pinecone not installed on this Sprite. Using local cosine similarity over SQLite ingredient_history + quotes seed.',
         { baseUrl: gatewayBaseUrl(gateway, 'pinecone') }),
-      apify: status('apify', hasConnector(gateway, 'apify'),
-        hasConnector(gateway, 'apify') ? 'sprites-gateway' : 'local-fallback',
-        hasConnector(gateway, 'apify')
-          ? 'Apify reachable via Sprites Gateway (4s timeout).'
-          : 'Apify not installed on this Sprite. Using local news_cache fallback (seeded grim headline, no live fetch).',
+      apify: status('apify', has('apify'), 'local-fallback',
+        has('apify')
+          ? 'no Apify Actor configured — headlines are local (fictional fallback)'
+          : 'apify connector not installed on this Sprite',
+        has('apify')
+          ? 'Apify wired (local-fallback active): reachable via Sprites Gateway, but no Actor is configured, so the Global Dread Pairing serves the local news_cache (seeded fictional headlines, no live scrape).'
+          : 'Apify not installed on this Sprite. Using local news_cache fallback (seeded fictional headline, no live fetch).',
         { timeoutMs: APIFY_TIMEOUT_MS, baseUrl: gatewayBaseUrl(gateway, 'apify') }),
-      box: status('box', hasConnector(gateway, 'box'),
-        hasConnector(gateway, 'box') ? 'sprites-gateway' : 'local-fallback',
-        hasConnector(gateway, 'box')
+      box: status('box', has('box'),
+        has('box') ? 'live' : 'local-fallback',
+        has('box') ? null : 'box connector not installed on this Sprite',
+        has('box')
           ? 'Box reachable via Sprites Gateway (POST /upload/files/content).'
           : 'Box not installed on this Sprite. Receipt is offered as a local download instead of an upload.',
         { uploadPath: '/upload/files/content', baseUrl: gatewayBaseUrl(gateway, 'box') }),
@@ -173,7 +222,7 @@ export async function callOpenRouter({ messages, model = 'openrouter/free', time
   const gateway = await discoverGateway();
   const baseUrl = gatewayBaseUrl(gateway, 'openrouter');
   if (!hasConnector(gateway, 'openrouter') || !baseUrl) {
-    return { ok: false, via: 'local-fallback', reason: 'openrouter connector not installed on this Sprite (gateway list does not include it)' };
+    return recordExecution('openrouter', { ok: false, via: 'local-fallback', reason: 'openrouter connector not installed on this Sprite (gateway list does not include it)' });
   }
   // Gateway-routed OpenRouter endpoint, proven live 2026-11-27:
   // POST <gateway_base_url>/v1/chat/completions, e.g.
@@ -202,16 +251,16 @@ export async function callOpenRouter({ messages, model = 'openrouter/free', time
       const data = await res.json();
       const text = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '';
       if (!text) throw new Error('empty completion from OpenRouter via gateway');
-      return { ok: true, via: 'sprites-gateway', model, text: String(text) };
+      return recordExecution('openrouter', { ok: true, via: 'sprites-gateway', model, text: String(text) });
     } catch (err) {
       // Log the reason server-side (service log) so a silent fallback on
       // the Sprite can be diagnosed without guessing: timeout vs HTTP
       // error vs bad payload. The client still gets an honest local-fallback.
       console.error(`[openrouter] gateway call failed (${timeoutMs}ms): ${err?.message || err}`);
-      return { ok: false, via: 'local-fallback', reason: `openrouter via gateway failed: ${err?.message || err}` };
+      return recordExecution('openrouter', { ok: false, via: 'local-fallback', reason: `openrouter via gateway failed: ${err?.message || err}` });
     }
   }
-  return { ok: false, via: 'local-fallback', reason: 'openrouter via gateway failed: HTTP 429 (free-tier rate limit, retry exhausted)' };
+  return recordExecution('openrouter', { ok: false, via: 'local-fallback', reason: 'openrouter via gateway failed: HTTP 429 (free-tier rate limit, retry exhausted)' });
 }
 
 // Extract the first JSON object from a model reply: strip ```json fences,
@@ -268,20 +317,33 @@ export async function pineconeQuery({ text, candidates = [] } = {}) {
     ...c,
     score: cosineSimilarity(queryVec, embedText(c.text || c.ingredient || '')),
   })).sort((a, b) => b.score - a.score);
-  if (!hasConnector(gateway, 'pinecone')) {
-    return { ok: false, via: 'local-fallback', reason: 'pinecone connector not installed; local cosine similarity over SQLite used', results: scored };
-  }
-  return { ok: true, via: 'sprites-gateway', results: scored, note: 'Pinecone gateway discovered; scores are local cosine until a Pinecone index is configured for this app.' };
+  // Matching is ALWAYS local cosine (audit v14 P2-F): even when the
+  // gateway lists Pinecone, no index is configured and no query is ever
+  // sent — so `via` must never claim 'sprites-gateway' for this feature.
+  const discovered = hasConnector(gateway, 'pinecone');
+  return recordExecution('pinecone', {
+    ok: true, via: 'local-fallback',
+    reason: discovered
+      ? 'pinecone gateway discovered, but no index is configured — matching is local cosine over SQLite'
+      : 'pinecone connector not installed; local cosine similarity over SQLite used',
+    results: scored,
+    note: 'Scores are local cosine until a Pinecone index is configured for this app.',
+  });
 }
 
-// --- Apify: one grim real-world news item, 4s timeout, local cache fallback --
+// --- Apify: one grim news item, 4s timeout, local cache fallback --------
+// The fallback headlines are CLEARLY FICTIONAL, in Chef Jean-Paul's voice
+// (audit v14 P0-D): the old list had one real-sounding claim — "Global
+// coffee prices just jumped 12%" — which the LLM was then told to treat
+// as real news. No fallback headline may ever read like a real report.
+// A live Apify Actor would replace these with real, sourced headlines.
 export const FALLBACK_NEWS = [
-  { title: 'The world kept turning, indifferently, while your rice went cold.', source: 'local-fallback (no live news)', url: null },
-  { title: 'Scientists confirm the universe is expanding; your leftovers are not.', source: 'local-fallback (no live news)', url: null },
-  { title: 'Another week, another headline nobody will remember by Thursday.', source: 'local-fallback (no live news)', url: null },
-  { title: 'Global coffee prices just jumped 12% while thousands sat in traffic, going nowhere.', source: 'local-fallback (no live news)', url: null },
-  { title: 'The forecast promised rain again, and the clouds kept their promise.', source: 'local-fallback (no live news)', url: null },
-  { title: 'Commuters spent a collective lifetime in traffic today, and the evening rush has not even started.', source: 'local-fallback (no live news)', url: null },
+  { title: 'The International Bureau of Refrigerator Existentialism reports that another spinach has refused to fulfil its destiny.', source: 'local-fallback (fictional headline — no live news)', url: null },
+  { title: 'The Ministry of Leftover Affairs confirms that Tuesday has been cancelled for the third week running.', source: 'local-fallback (fictional headline — no live news)', url: null },
+  { title: 'A committee of very serious cheeses has declared that nobody is coming to dinner, ever again.', source: 'local-fallback (fictional headline — no live news)', url: null },
+  { title: 'The Society for the Preservation of Cold Rice announces that hope has been postponed until further notice.', source: 'local-fallback (fictional headline — no live news)', url: null },
+  { title: 'Official bulletin: the fridge light has been on all night, watching. It has seen everything.', source: 'local-fallback (fictional headline — no live news)', url: null },
+  { title: 'The Department of Expired Yoghurt regrets to inform you that time is, in fact, running out.', source: 'local-fallback (fictional headline — no live news)', url: null },
 ];
 
 // The seeded fallback headline is cached, but news goes stale: a cached
@@ -316,37 +378,56 @@ export async function apifyFetchNews() {
   try {
     const cached = getLatestNews();
     if (cached?.title && !isNewsStale(cached.fetched_at)) {
-      return { ok: false, via: 'local-fallback', reason: 'apify connector not installed or timed out; serving cached news', news: { title: cached.title, source: cached.source || 'news_cache', url: cached.payload?.url || null } };
+      return recordExecution('apify', { ok: true, via: 'local-fallback', reason: 'no Apify Actor configured; serving cached fictional headline', news: { title: cached.title, source: cached.source || 'news_cache', url: cached.payload?.url || null } });
     }
     const pool = FALLBACK_NEWS.filter((n) => n.title !== cached?.title);
     const candidates = pool.length ? pool : FALLBACK_NEWS;
     const seed = candidates[Math.floor(Math.random() * candidates.length)];
     try { cacheNews({ title: seed.title, source: seed.source, payload: seed }); } catch {}
-    return { ok: false, via: 'local-fallback', reason: 'apify connector not installed; serving seeded fallback headline', news: seed };
+    return recordExecution('apify', { ok: true, via: 'local-fallback', reason: 'no Apify Actor configured; serving seeded fictional headline', news: seed });
   } catch {}
   const seed = FALLBACK_NEWS[Math.floor(Math.random() * FALLBACK_NEWS.length)];
   try { cacheNews({ title: seed.title, source: seed.source, payload: seed }); } catch {}
-  return { ok: false, via: 'local-fallback', reason: 'apify connector not installed; serving seeded fallback headline', news: seed };
+  return recordExecution('apify', { ok: true, via: 'local-fallback', reason: 'no Apify Actor configured; serving seeded fictional headline', news: seed });
 }
 
 // --- Box: archive the "Culinary Sin Receipt" --------------------------------
+// Box's upload API takes multipart/form-data: an `attributes` JSON part
+// ({ name, parent: { id: '0' } } — root folder) and a `file` part. A raw
+// body is rejected with HTTP 415 (proven live 2026-11-27, right after the
+// Box connector was linked). Built by hand: builtins only, no dependency.
+export function buildBoxMultipart({ filename, content, contentType = 'text/html' } = {}) {
+  const boundary = `----lefrigovide-${Math.random().toString(16).slice(2)}`;
+  const attributes = JSON.stringify({ name: filename, parent: { id: '0' } });
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="attributes"\r\nContent-Type: application/json\r\n\r\n${attributes}\r\n`),
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`),
+    Buffer.from(String(content ?? '')),
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ]);
+  return { body, boundary, contentTypeHeader: `multipart/form-data; boundary=${boundary}` };
+}
+
+const BOX_TIMEOUT_MS = 15_000;
+
 export async function boxUpload({ filename, content, contentType = 'text/html' } = {}) {
   const gateway = await discoverGateway();
   const baseUrl = gatewayBaseUrl(gateway, 'box');
   if (hasConnector(gateway, 'box') && baseUrl) {
     try {
+      const { body, contentTypeHeader } = buildBoxMultipart({ filename, content, contentType });
       const res = await fetchWithTimeout(`${baseUrl}/upload/files/content`, {
-        timeoutMs: APIFY_TIMEOUT_MS,
+        timeoutMs: BOX_TIMEOUT_MS,
         method: 'POST',
-        headers: { 'content-type': contentType, 'x-filename': filename },
-        body: content,
+        headers: { 'content-type': contentTypeHeader },
+        body,
       });
       if (!res.ok) throw new Error(`box via gateway HTTP ${res.status}`);
       const data = await res.json().catch(() => ({}));
-      return { ok: true, via: 'sprites-gateway', filename, boxId: data?.id || data?.entries?.[0]?.id || null, note: 'Uploaded to Box via Sprites Gateway (POST /upload/files/content).' };
+      return recordExecution('box', { ok: true, via: 'sprites-gateway', filename, boxId: data?.id || data?.entries?.[0]?.id || null, note: 'Uploaded to Box via Sprites Gateway (POST /upload/files/content).' });
     } catch (err) {
-      return { ok: false, via: 'local-fallback', reason: `box upload via gateway failed: ${err?.message || err}`, filename, note: 'Box upload failed; receipt is offered as a local download instead.' };
+      return recordExecution('box', { ok: false, via: 'local-fallback', reason: `box upload via gateway failed: ${err?.message || err}`, filename, note: 'Box upload failed; receipt is offered as a local download instead.' });
     }
   }
-  return { ok: false, via: 'local-fallback', reason: 'box connector not installed on this Sprite', filename, note: 'Box not installed. Receipt is offered as a local download instead of an upload.' };
+  return recordExecution('box', { ok: false, via: 'local-fallback', reason: 'box connector not installed on this Sprite', filename, note: 'Box not installed. Receipt is offered as a local download instead of an upload.' });
 }

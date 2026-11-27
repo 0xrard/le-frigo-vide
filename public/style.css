@@ -6,8 +6,6 @@ body { margin:0; background:#ece5d3; color:var(--ink); font-family:Georgia,'Time
 .brand { display:flex; align-items:center; gap:14px; }
 .brand-logo { width:52px; height:52px; flex:none; }
 .tagline { margin:6px 0 0; color:var(--muted); font-style:italic; }
-#lang-toggle { font-family:inherit; font-size:14px; padding:10px 14px; background:var(--ink); color:#f7f1e3; border:1px solid var(--ink); cursor:pointer; letter-spacing:1px; }
-#lang-toggle:hover { background:#000; }
 .layout { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr); gap:24px; padding:16px 28px 28px; align-items:start; }
 @media (max-width:900px){ .layout{grid-template-columns:1fr;} }
 
@@ -22,6 +20,20 @@ body { margin:0; background:#ece5d3; color:var(--ink); font-family:Georgia,'Time
 .field-label { display:block; font-size:13px; letter-spacing:2px; text-transform:uppercase; margin-bottom:6px; }
 #ingredients-input { width:100%; font-family:inherit; font-size:16px; padding:12px; border:1px solid #b9ab84; background:#fffef9; color:var(--ink); resize:vertical; }
 .presets { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:12px 0; }
+/* Ingredient condition (audit v16 P1-C): a bare animal product gets a
+   Raw / Cooked choice. The row is a nudge, not a blocker — unanswered
+   items are treated as raw, to be safe. */
+.condition-row { border:1px solid var(--gold); background:#fffdf6; padding:10px 12px; margin:0 0 12px; }
+.condition-title { margin:0 0 8px; font-size:13px; letter-spacing:1px; text-transform:uppercase; color:var(--ink); }
+.condition-chip { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.condition-chip span { flex:1; font-style:italic; }
+.condition-chip .preset-btn { text-align:center; padding:6px 10px; }
+/* A clarification that the Raw / Cooked buttons cannot answer (an
+   unidentified protein, an ambiguous combination): a hint, not a
+   button — it takes the space the buttons would have taken. */
+.condition-chip .condition-hint { flex:2; font-size:13px; color:var(--muted); font-style:italic; }
+.condition-note { margin:4px 0 0; font-size:12px; color:var(--muted); font-style:italic; }
+.lang-hint { margin:4px 0 0; font-size:12px; color:var(--muted); font-style:italic; }
 .preset-btn { font-family:inherit; font-size:13px; padding:10px 8px; background:#fff; border:1px solid var(--gold); color:var(--ink); cursor:pointer; text-align:left; }
 .preset-btn:hover { background:#f3ead0; }
 .preset-trap { border-color:var(--red); color:var(--red); }
@@ -69,3 +81,45 @@ blockquote cite { color:var(--muted); font-style:normal; }
 .history-list { list-style:none; padding:0; margin:0; font-size:14px; }
 .history-list li { padding:6px 0; border-bottom:1px solid #eee; }
 footer { padding:0 28px 24px; color:var(--muted); font-size:13px; font-style:italic; }
+
+/* Le Bulletin du Frigo — vintage newspaper (L'Art Culinaire, 1922) */
+.chronicle { margin:4px 28px 28px; background:var(--paper2); border:3px double var(--gold); padding:24px 28px; }
+.chronicle-masthead { text-align:center; border-bottom:2px solid var(--ink); padding-bottom:12px; margin-bottom:16px; }
+.chronicle-kicker { margin:0 0 4px; letter-spacing:4px; text-transform:uppercase; font-size:12px; color:var(--gold); }
+.chronicle-masthead h2 { margin:0 0 6px; font-size:30px; font-weight:400; letter-spacing:2px; text-transform:uppercase; }
+.chronicle-dateline { margin:0; color:var(--muted); font-style:italic; font-size:13px; }
+.investigation { border:1px solid var(--ink); padding:14px 18px; margin-bottom:18px; background:var(--paper); }
+.investigation h3 { margin:0 0 8px; font-size:16px; letter-spacing:2px; text-transform:uppercase; }
+.investigation p { margin:4px 0; font-size:14px; line-height:1.6; }
+.inv-verdict { font-style:italic; }
+.inv-verdict span:first-child { font-style:normal; font-weight:bold; }
+.chronicle-columns { display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; }
+@media (max-width:900px){ .chronicle-columns{grid-template-columns:1fr 1fr;} }
+@media (max-width:560px){ .chronicle-columns{grid-template-columns:1fr;} }
+.chronicle-col h3 { margin:0 0 8px; font-size:14px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); font-weight:400; border-bottom:1px solid var(--gold); padding-bottom:6px; }
+.dossier-list { list-style:none; padding:0; margin:0; }
+.dossier-list li { padding:10px 0; border-bottom:1px solid #e5dcc3; font-size:14px; line-height:1.5; }
+.dossier-list li:last-child { border-bottom:0; }
+.dossier-name { font-weight:bold; text-transform:capitalize; }
+.dossier-meta { display:block; color:var(--muted); font-size:12px; margin:2px 0 6px; }
+.dossier-none { color:var(--muted); font-style:italic; }
+.dossier-actions { display:flex; gap:8px; }
+.dossier-btn { font-family:inherit; font-size:12px; padding:6px 10px; background:#fff; border:1px solid var(--ink); cursor:pointer; letter-spacing:1px; }
+.dossier-btn:hover { background:#f3ead0; }
+.dossier-btn:disabled { opacity:.5; cursor:wait; }
+.chronicle-empty { text-align:center; color:var(--muted); font-style:italic; }
+
+/* Safety warning — never buried in prose: red, bordered, above the score. */
+.safety-warning { border:2px solid var(--red); background:#fdf0f0; color:var(--red); padding:12px 14px; font-weight:bold; font-size:14px; line-height:1.5; margin:0 0 12px; }
+
+/* Secondary action: Log Fridge Check sits under the generate button. */
+.secondary-btn { width:100%; font-family:inherit; font-size:14px; letter-spacing:2px; padding:11px; background:transparent; color:var(--ink); border:1px solid var(--ink); cursor:pointer; text-transform:uppercase; margin-top:10px; }
+.secondary-btn:hover { background:#f3ead0; }
+.secondary-btn:disabled { opacity:.6; cursor:wait; }
+
+/* Chronicle view toggle + DEMO DATA badge. */
+.chronicle-view { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0 4px; }
+.view-btn { font-family:inherit; font-size:12px; padding:6px 12px; background:transparent; border:1px solid var(--ink); cursor:pointer; letter-spacing:1px; }
+.view-btn-active { background:var(--ink); color:#f7f1e3; }
+.demo-badge { font-size:11px; font-weight:bold; letter-spacing:2px; color:#fff; background:var(--red); padding:4px 8px; }
+.chronicle-demo-note { color:var(--muted); font-style:italic; font-size:13px; margin:4px 0 0; }

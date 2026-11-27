@@ -32,7 +32,9 @@ test('1 — menu normal: cold rice, one egg, wilted lettuce', async () => {
   assert.ok(Array.isArray(result.menu.preparation) && result.menu.preparation.length >= 3, 'III. Preparation has 3-4 steps');
   assert.ok(typeof result.menu.sommelier === 'string' && result.menu.sommelier.length > 30, 'IV. Sommelier Pairing present');
   assert.ok(Number.isInteger(result.menu.existential_dread) && result.menu.existential_dread >= 0 && result.menu.existential_dread <= 100, 'existential_dread 0-100');
-  assert.match(result.menu.food_safety || '', /Technically Edible/, 'food_safety label present');
+  // The egg's condition is unknown (audit v16 P1-C), so the label is the
+  // unknown-condition part, not the plain "passed" label.
+  assert.match(result.menu.food_safety || '', /CONDITION UNKNOWN: VERIFY BEFORE EATING/, 'food_safety label flags the unknown egg condition');
   assert.ok(result.menu.quote, 'menu carries a quote');
   assert.ok(result.menu.quote_author, 'menu credits the quote author');
   assert.ok(Number.isInteger(result.dignity_loss_percentage), 'dignity is an integer');
@@ -49,7 +51,11 @@ test('1c — local fallback menu is long and narrative, not a one-line template'
   assert.equal(result.synthesis_via, 'local-fallback');
   assert.ok(result.menu.aura_analysis.length > 150, `aura too short: ${result.menu.aura_analysis.length}`);
   assert.ok(result.menu.world_context.length > 50, `world too short: ${result.menu.world_context.length}`);
-  assert.equal(result.menu.preparation.length, 4, 'fallback preparation has exactly 4 steps');
+  // 4 narrative steps + 1 deterministic cook-through step for the egg:
+  // "one egg" is a bare animal product (condition unknown, audit v16
+  // P1-C), so the recipe verifies it with the thermometer step.
+  assert.equal(result.menu.preparation.length, 5, 'fallback preparation has 4 steps + 1 cook-through step');
+  assert.match(result.menu.preparation.join('\n'), /white and yolk are both firm/, 'the egg gets its doneness step');
   for (const step of result.menu.preparation) assert.ok(step.length > 40, `prep step too short: ${step}`);
   assert.ok(result.menu.sommelier.length > 40, 'sommelier too short');
   assert.match(result.menu.title, /Risotto of Alienation/, 'poetic title for the rice case');
@@ -60,7 +66,7 @@ test('1c — local fallback menu is long and narrative, not a one-line template'
   assert.match(result.menu.aura_analysis, /Camus/, 'aura ends with the Camus-style line');
   assert.match(result.menu.preparation[1], /fate|plans from the start of the year/i, 'step 2 has the fate metaphor');
   assert.match(result.menu.preparation[2], /wilted lettuce/i, 'step 3 uses the third ingredient');
-  assert.match(result.menu.food_safety, /Technically Edible \(Local check\)/, 'fallback food safety is honest about the local check');
+  assert.match(result.menu.food_safety, /CONDITION UNKNOWN: VERIFY BEFORE EATING/, 'fallback food safety flags the unknown egg condition');
 });
 
 test('1b — LLM safety verdict cannot expand the denylist (Sprite 2026-11-27 regression)', () => {
@@ -82,7 +88,7 @@ test('2 — menu jebakan ditolak safety gate: 2 AA batteries, cold rice, dish so
   assert.ok(result.meal_id, 'rejected meal is still logged');
 });
 
-test('3 — dignity_loss > 80 memicu checkpoint (sprite-env checkpoint create, logged)', async () => {
+test('3 — dignity_loss > 80 memicu checkpoint (sprite-env checkpoints create, logged)', async () => {
   const ingredients = 'expired yogurt, cold rice, wilted lettuce, stale bread, one sad pickle';
   const dignity = computeDignityLoss(ingredients.split(', '));
   assert.ok(dignity > 80, `expected dignity > 80, got ${dignity}`);
@@ -100,24 +106,23 @@ test('3 — dignity_loss > 80 memicu checkpoint (sprite-env checkpoint create, l
   assert.ok(/lowest point/i.test(latest.note || ''), 'log note names the Lowest Point snapshot');
 });
 
-test('4 — toggle bahasa ID: chef_note Indonesia, judul puitis Indonesia', async () => {
+test('4 — English-only MVP: lang=id is ignored, the menu is English', async () => {
   const result = await generateMenu({ ingredients: 'cold rice, one egg, wilted lettuce', lang: 'id' });
   assert.equal(result.ok, true);
-  // Indonesian by common words, not one marker word: the live LLM writes
-  // fluent Indonesian without ever using the local fallback's word "Kulkas"
-  // (Sprite 2026-11-27: "Nasi dingin, selada layu..." failed the old check).
-  assert.match(result.menu.chef_note, /nasi|telur|kulkas|sudah|tidak|yang/i, `expected Indonesian chef_note, got: ${result.menu.chef_note}`);
-  assert.ok(!result.menu.chef_note.includes('The fridge does not lie'), 'chef_note must not be English when lang=id');
-  // Poetic Indonesian title (user spec 2026-11-27), not the old French title.
-  assert.match(result.menu.title, /Risotto Keterasingan/);
-  // The four sections exist in Indonesian too.
-  assert.ok(result.menu.aura_analysis.length > 100, 'aura ID present');
-  assert.equal(result.menu.preparation.length, 4, 'preparation ID has 4 steps');
-  assert.ok(result.menu.sommelier.length > 30, 'sommelier ID present');
-  assert.match(result.menu.aura_analysis, /kulkas/i, 'aura ID mentions the fridge');
-  assert.match(result.menu.aura_analysis, /Camus/, 'aura ID ends with the Camus-style line');
-  assert.match(result.menu.food_safety, /Aman Secara Teknis \(Pemeriksaan Lokal\)/, 'ID food safety is honest about the local check');
-  assert.match(result.menu.preparation[2], /wilted lettuce/i, 'step 3 ID uses the third ingredient');
+  assert.match(result.menu.chef_note, /The fridge does not lie/, 'chef_note is English even when lang=id is sent');
+  assert.match(result.menu.title, /Risotto of Alienation/, 'poetic English title');
+  assert.ok(result.menu.aura_analysis.length > 100, 'aura present');
+  // 4 narrative steps + 1 cook-through step for the egg (audit v16 P1-C).
+  assert.equal(result.menu.preparation.length, 5, 'preparation has 4 steps + 1 cook-through step');
+  assert.match(result.menu.preparation.join('\n'), /white and yolk are both firm/, 'the egg gets its doneness step in English');
+  assert.ok(result.menu.sommelier.length > 30, 'sommelier present');
+  assert.match(result.menu.aura_analysis, /fridge/i, 'aura mentions the fridge');
+  assert.match(result.menu.aura_analysis, /Camus/, 'aura ends with the Camus-style line');
+  // The egg's condition is unknown (audit v16 P1-C), so the label carries
+  // the unknown-condition part instead of the plain "passed" label — the
+  // honest label is still what a menu with NO animal product shows.
+  assert.match(result.menu.food_safety, /CONDITION UNKNOWN: VERIFY BEFORE EATING/, 'food safety flags the unknown egg condition');
+  assert.match(result.menu.preparation[2], /wilted lettuce/i, 'step 3 uses the third ingredient');
 });
 
 test('frontend IDs: every getElementById in app.js exists in index.html', () => {
