@@ -196,6 +196,7 @@ async function generate() {
     status.textContent = result.rejected
       ? ''
       : `via ${result.synthesis_via || 'local-fallback'} · memory ${result.memory_via || 'local-fallback'} · dread ${result.dread_via || 'local-fallback'}`;
+    if (result.synthesis_note) status.textContent += ` — ${result.synthesis_note}`;
     await refreshState();
   } catch (err) {
     status.textContent = `Error: ${err.message}`;

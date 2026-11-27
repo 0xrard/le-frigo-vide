@@ -169,7 +169,7 @@ export async function getConnectedStatus() {
 // real call fail and silently fall back to local synthesis. Default is
 // now 15s; the pipeline passes 8s for the short safety classification
 // and 20s for the full menu synthesis.
-export async function callOpenRouter({ messages, model = 'openrouter/free', timeoutMs = 15000, maxTokens = null } = {}) {
+export async function callOpenRouter({ messages, model = 'openrouter/free', timeoutMs = 15000, maxTokens = null, retryDelayMs = 15000 } = {}) {
   const gateway = await discoverGateway();
   const baseUrl = gatewayBaseUrl(gateway, 'openrouter');
   if (!hasConnector(gateway, 'openrouter') || !baseUrl) {
@@ -180,25 +180,38 @@ export async function callOpenRouter({ messages, model = 'openrouter/free', time
   // https://api.sprites.dev/v1/gateway/openrouter/<connection-id>/v1/chat/completions
   // No Authorization header — the gateway injects the credential itself.
   // If the call fails, the caller uses the local fallback.
-  try {
-    const res = await fetchWithTimeout(`${baseUrl}/v1/chat/completions`, {
-      timeoutMs,
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model, messages, ...(maxTokens ? { max_tokens: maxTokens } : {}) }),
-    });
-    if (!res.ok) throw new Error(`openrouter via gateway HTTP ${res.status}`);
-    const data = await res.json();
-    const text = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '';
-    if (!text) throw new Error('empty completion from OpenRouter via gateway');
-    return { ok: true, via: 'sprites-gateway', model, text: String(text) };
-  } catch (err) {
-    // Log the reason server-side (service log) so a silent fallback on the
-    // Sprite can be diagnosed without guessing: timeout vs HTTP error vs
-    // bad payload. The client still gets an honest local-fallback.
-    console.error(`[openrouter] gateway call failed (${timeoutMs}ms): ${err?.message || err}`);
-    return { ok: false, via: 'local-fallback', reason: `openrouter via gateway failed: ${err?.message || err}` };
+  // Retry once on HTTP 429: the free tier rate-limits (proven by the
+  // Sprite service log, 2026-11-27 — a burst of 429s after many calls),
+  // and a short wait often clears a per-minute window. Other failures
+  // (timeout, 4xx/5xx) are not retried.
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`${baseUrl}/v1/chat/completions`, {
+        timeoutMs,
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model, messages, ...(maxTokens ? { max_tokens: maxTokens } : {}) }),
+      });
+      if (res.status === 429 && attempt === 1) {
+        console.error(`[openrouter] HTTP 429 (free-tier rate limit); retrying once after ${retryDelayMs}ms`);
+        await sleep(retryDelayMs);
+        continue;
+      }
+      if (!res.ok) throw new Error(`openrouter via gateway HTTP ${res.status}`);
+      const data = await res.json();
+      const text = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '';
+      if (!text) throw new Error('empty completion from OpenRouter via gateway');
+      return { ok: true, via: 'sprites-gateway', model, text: String(text) };
+    } catch (err) {
+      // Log the reason server-side (service log) so a silent fallback on
+      // the Sprite can be diagnosed without guessing: timeout vs HTTP
+      // error vs bad payload. The client still gets an honest local-fallback.
+      console.error(`[openrouter] gateway call failed (${timeoutMs}ms): ${err?.message || err}`);
+      return { ok: false, via: 'local-fallback', reason: `openrouter via gateway failed: ${err?.message || err}` };
+    }
   }
+  return { ok: false, via: 'local-fallback', reason: 'openrouter via gateway failed: HTTP 429 (free-tier rate limit, retry exhausted)' };
 }
 
 // Extract the first JSON object from a model reply: strip ```json fences,

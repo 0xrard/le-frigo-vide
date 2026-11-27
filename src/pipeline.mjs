@@ -232,6 +232,7 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
   const dignity = computeDignityLoss(ingredients);
   let menu = null;
   let synthesisVia = 'local-fallback';
+  let synthesisNote = null;
   try {
     const res = await callOpenRouter({
       model: 'openrouter/free',
@@ -247,6 +248,14 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
         { role: 'user', content: buildUserPrompt({ ingredients, lang: language, quote, dread: null, recurring }) },
       ],
     });
+    // When the fallback is caused by the free tier's rate limit, say so
+    // plainly instead of silently serving the local menu — the judge (and
+    // the user) can tell a limit from a bug, and retrying later works.
+    if (!res.ok && /429/.test(res.reason || '')) {
+      synthesisNote = language === 'id'
+        ? 'OpenRouter sedang rate-limited (HTTP 429, free tier). Menu lokal disajikan — coba lagi beberapa menit lagi.'
+        : 'OpenRouter is rate-limited right now (HTTP 429, free tier). Serving the local menu — try again in a few minutes.';
+    }
     if (res.ok && res.text) {
       const parsed = extractJsonObject(res.text) || {};
       // Free models vary the keys: accept title/dish_title/name and
@@ -286,7 +295,7 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
     });
     let checkpoint = null;
     if (dignity > 80) checkpoint = triggerCheckpoint(mealId, dignity);
-    return { ok: true, rejected: false, meal_id: mealId, menu, dignity_loss_percentage: dignity, safety_via: safetyVia, synthesis_via: synthesisVia, memory_via: quoteResult.via, dread_via: dreadRes.via, dread, recurring, checkpoint };
+    return { ok: true, rejected: false, meal_id: mealId, menu, dignity_loss_percentage: dignity, safety_via: safetyVia, synthesis_via: synthesisVia, synthesis_note: synthesisNote, memory_via: quoteResult.via, dread_via: dreadRes.via, dread, recurring, checkpoint };
   }
 
   // OpenRouter path: still needs Stage 4 (dread) + persistence + checkpoint.
