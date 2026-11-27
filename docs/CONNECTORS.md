@@ -105,7 +105,7 @@ last result are never conflated:
   would replace these with real, sourced headlines.
 - **Mode:** `local-fallback`, always. Timeout 4s.
 
-## Box — live gateway path implemented, end-to-end upload pending verification
+## Box — live via the gateway (upload verified 2026-11-28)
 
 - **Call:** `POST <gateway_base_url>/upload/files/content`
   (15s timeout).
@@ -114,10 +114,9 @@ last result are never conflated:
   and a `file` part. A raw body is rejected with HTTP 415 (proven
   live 2026-11-27, right after the Box connector was linked — that
   is how the multipart fix was found).
-- **Status label:** "Live gateway path implemented — successful
-  end-to-end upload pending verification." The upload path exists
-  and is wired, but a successful upload has not yet been proven on
-  the Sprite.
+- **Status label:** "Live via the gateway." The multipart upload was
+  verified on the Sprite 2026-11-28: `POST /api/meals/:id/archive-box`
+  returned `via: "sprites-gateway"` with a Box file id.
 - **Fallback:** when Box is not installed, or an upload fails, the
   receipt is offered as a local download instead
   (`receipt_html` + `download_filename` in the archive response).

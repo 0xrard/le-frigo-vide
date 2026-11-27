@@ -248,7 +248,17 @@ test('GET /connected (HTML) renders the same honest status', async () => {
   assert.equal(r.status, 200);
   const text = await r.text();
   assert.ok(text.includes('rawApiKeysInEnv: 0'));
-  assert.ok(text.includes('NOT INSTALLED'));
+  // The HTML must mirror the JSON status exactly: a connector the
+  // gateway lists is CONNECTED, one it does not list is NOT INSTALLED.
+  // (On the Sprite all four are connected, so no NOT INSTALLED appears;
+  // locally none are, so every row says NOT INSTALLED. The old
+  // unconditional 'NOT INSTALLED' assertion failed on the Sprite.)
+  const j = await (await fetch(`${BASE}/connected?format=json`)).json();
+  for (const name of ['openrouter', 'pinecone', 'apify', 'box']) {
+    const c = j.connectors[name];
+    const expected = c.connected ? 'CONNECTED' : 'NOT INSTALLED';
+    assert.ok(text.includes(`<td>${name}</td><td>${expected}</td>`), `${name} row must say ${expected}`);
+  }
 });
 
 test('POST /api/generate — normal menu via HTTP', async () => {
@@ -277,7 +287,7 @@ test('POST /api/generate — trap rejected via HTTP', async () => {
   assert.equal(j.rejected, true);
 });
 
-test('POST /api/meals/:id/archive-box — local fallback returns receipt for download', async () => {
+test('POST /api/meals/:id/archive-box — Box connected uploads via gateway, else local fallback receipt', async () => {
   const gen = await fetch(`${BASE}/api/generate`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ ingredients: 'stale bread, cheese', lang: 'en' }),
@@ -286,11 +296,25 @@ test('POST /api/meals/:id/archive-box — local fallback returns receipt for dow
   const r = await fetch(`${BASE}/api/meals/${meal.meal_id}/archive-box`, { method: 'POST' });
   assert.equal(r.status, 200);
   const j = await r.json();
-  assert.equal(j.via, 'local-fallback');
-  assert.ok(j.receipt_html && j.receipt_html.includes('CULINARY SIN RECEIPT'), 'fallback receipt HTML returned');
-  assert.ok(j.receipt_html.includes('Existential Dread'), 'receipt carries the score line');
-  assert.ok(j.receipt_html.includes('Fridge Aura Analysis'), 'receipt carries section I');
-  assert.ok(j.receipt_html.includes('Sommelier Pairing'), 'receipt carries section IV');
+  // Whether the archive goes to Box or falls back to a local download
+  // depends on the environment: on the Sprite Box is connected, so the
+  // multipart upload runs via the gateway (and returns a Box file id);
+  // locally it is not, so the receipt HTML is returned for download.
+  // Both are honest outcomes — the old unconditional 'local-fallback'
+  // assertion failed on the Sprite, where the upload genuinely works.
+  const connected = await (await fetch(`${BASE}/connected?format=json`)).json();
+  if (connected.connectors.box.connected) {
+    assert.equal(j.ok, true, 'gateway upload must succeed');
+    assert.equal(j.via, 'sprites-gateway', 'Box is connected, so the archive must upload via the gateway');
+    assert.ok(j.box_id, 'gateway upload must return a Box file id');
+    assert.equal(j.receipt_html, null, 'no local receipt when the upload succeeded');
+  } else {
+    assert.equal(j.via, 'local-fallback');
+    assert.ok(j.receipt_html && j.receipt_html.includes('CULINARY SIN RECEIPT'), 'fallback receipt HTML returned');
+    assert.ok(j.receipt_html.includes('Existential Dread'), 'receipt carries the score line');
+    assert.ok(j.receipt_html.includes('Fridge Aura Analysis'), 'receipt carries section I');
+    assert.ok(j.receipt_html.includes('Sommelier Pairing'), 'receipt carries section IV');
+  }
 });
 
 test('GET / serves the Michelin UI', async () => {

@@ -53,7 +53,7 @@ Le Frigo Vide runs as a managed service on a Fly.io Sprite (`node src/server.mjs
 | OpenRouter (`openrouter/free`) | **Live** via the gateway | Food-safety guardrail + menu synthesis. Proven live on the Sprite 2026-11-27. Deterministic local fallback on 429/offline. |
 | Pinecone | Local fallback | No Pinecone index is configured and no query is ever sent. Matching is local cosine similarity over SQLite ingredient history. |
 | Apify | Local fallback | No Actor is configured and no run is ever started. The Global Dread Pairing serves fictional headlines from a local cache. |
-| Box | Live gateway path implemented — successful end-to-end upload pending verification | Multipart upload of the Culinary Sin Receipt via `POST /upload/files/content`. Receipt offered as a local download when not installed. |
+| Box | **Live** via the gateway — multipart upload verified on the Sprite 2026-11-28 | Multipart upload of the Culinary Sin Receipt via `POST /upload/files/content`. Receipt offered as a local download when not installed. |
 
 `GET /connected` (or `?format=json`) proves `rawApiKeysInEnv: 0` and the real status of every connector.
 
