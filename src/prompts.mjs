@@ -71,7 +71,10 @@ export function buildUserPrompt({ ingredients, lang = 'en', quote = null, dread 
 
 export function buildSafetyPrompt({ ingredients, lang = 'en' }) {
   const list = (ingredients || []).join(', ');
+  // Expired, stale, wilted or sad food is still FOOD — only non-food
+  // objects, toxins and household items are unsafe. Never flag a food
+  // item just because it is old, expired, or depressing.
   return lang === 'id'
-    ? `Apakah semua bahan berikut aman dimakan manusia dan merupakan makanan, bukan benda non-pangan, racun, atau peralatan? Bahan: ${list}. Jawab JSON saja: {"safe": true/false, "unsafe_items": [...], "reason": "..."}.`
-    : `Are all of the following items safe for humans to eat, and actual food rather than non-food objects, toxins, or household items? Items: ${list}. Reply with JSON only: {"safe": true/false, "unsafe_items": [...], "reason": "..."}.`;
+    ? `Apakah semua bahan berikut merupakan makanan, bukan benda non-pangan, racun, atau peralatan? Makanan kadaluarsa, basi, layu, atau menyedihkan tetap dihitung makanan dan AMAN untuk daftar ini — hanya benda non-pangan yang tidak aman. Bahan: ${list}. Jawab JSON saja: {"safe": true/false, "unsafe_items": [...], "reason": "..."}.`
+    : `Are all of the following items actual food rather than non-food objects, toxins, or household items? Expired, stale, wilted or sad food still counts as FOOD and is SAFE for this list — only non-food items are unsafe. Items: ${list}. Reply with JSON only: {"safe": true/false, "unsafe_items": [...], "reason": "..."}.`;
 }

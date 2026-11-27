@@ -8,7 +8,7 @@ import { join } from 'node:path';
 const dir = mkdtempSync(join(tmpdir(), 'le-frigo-vide-test-'));
 process.env.LE_FRIGO_DB = join(dir, 'test.sqlite');
 
-const { generateMenu, computeDignityLoss } = await import('../src/pipeline.mjs');
+const { generateMenu, computeDignityLoss, filterLlmUnsafeItems } = await import('../src/pipeline.mjs');
 const { initDb, listCheckpoints, closeDb } = await import('../src/db.mjs');
 const { QUOTES } = await import('../src/quotes.mjs');
 
@@ -34,6 +34,16 @@ test('1 — menu normal: cold rice, one egg, wilted lettuce', async () => {
   assert.ok(result.dread, 'dread pairing present (fallback counts)');
   // Honest fallback: no gateway in this VM, so synthesis must say local-fallback.
   assert.equal(result.synthesis_via, 'local-fallback');
+});
+
+test('1b — LLM safety verdict cannot expand the denylist (Sprite 2026-11-27 regression)', () => {
+  // The live OpenRouter classifier rejected "expired yogurt" as unsafe and
+  // broke test 3 on the Sprite. Expired/stale food is still food.
+  assert.deepEqual(filterLlmUnsafeItems(['expired yogurt']), []);
+  assert.deepEqual(filterLlmUnsafeItems(['expired yogurt', 'cold rice']), []);
+  assert.deepEqual(filterLlmUnsafeItems(['2 AA batteries', 'cold rice']), ['2 AA batteries']);
+  assert.deepEqual(filterLlmUnsafeItems(['dish soap', 'cold rice']), ['dish soap']);
+  assert.deepEqual(filterLlmUnsafeItems(null), []);
 });
 
 test('2 — menu jebakan ditolak safety gate: 2 AA batteries, cold rice, dish soap', async () => {

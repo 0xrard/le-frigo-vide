@@ -35,6 +35,14 @@ export function localSafetyCheck(ingredients) {
   return unsafe;
 }
 
+// Keep only the LLM-flagged items that the local denylist also flags.
+// The LLM is an advisor, never the authority: expired/stale/sad food is
+// still food. Returns [] for non-array input.
+export function filterLlmUnsafeItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items.filter((it) => localSafetyCheck([String(it)]).length > 0);
+}
+
 const SADNESS = [
   [/expired|kadaluarsa|basi/i, 25],
   [/wilted|layu/i, 20],
@@ -179,6 +187,12 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
       : `The following items are not food and were refused: ${unsafeLocal.join(', ')}. Chef Jean-Paul does not cook batteries, soap, or household objects.`;
   } else {
     // Ask OpenRouter (free) when available; local denylist remains authoritative.
+    // REGRESSION (found on Sprite 2026-11-27): the LLM safety classifier
+    // rejected "expired yogurt" as unsafe, so a dignity>80 menu was refused
+    // and test 3 failed — but expired/stale food is still FOOD, only sad.
+    // The LLM may only CONFIRM a refusal the local denylist already makes;
+    // it may never expand the refusal set. Items it flags that are not on
+    // the denylist are ignored.
     try {
       const res = await callOpenRouter({
         model: 'openrouter/free',
@@ -190,8 +204,9 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
       if (res.ok && res.text) {
         safetyVia = 'openrouter/free';
         const parsed = JSON.parse(res.text.match(/\{[\s\S]*\}/)?.[0] || '{}');
-        if (parsed.safe === false && Array.isArray(parsed.unsafe_items) && parsed.unsafe_items.length) {
-          safetyReason = parsed.reason || `Refused by OpenRouter safety check: ${parsed.unsafe_items.join(', ')}`;
+        const confirmed = filterLlmUnsafeItems(parsed.unsafe_items);
+        if (parsed.safe === false && confirmed.length) {
+          safetyReason = parsed.reason || `Refused by OpenRouter safety check: ${confirmed.join(', ')}`;
         }
       }
     } catch { /* local denylist already passed; proceed with local fallback */ }
