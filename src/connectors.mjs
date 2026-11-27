@@ -163,7 +163,13 @@ export async function getConnectedStatus() {
 // --- OpenRouter (free model) -------------------------------------------------
 // If the gateway lists OpenRouter we attempt the gateway-routed call; any
 // failure falls back to local synthesis. We never send a key ourselves.
-export async function callOpenRouter({ messages, model = 'openrouter/free', timeoutMs = 4000 } = {}) {
+//
+// Timeout note (Sprite 2026-11-27): a tiny completion returns in ~2.7s,
+// but a full menu JSON takes much longer — the old 4s timeout made every
+// real call fail and silently fall back to local synthesis. Default is
+// now 15s; the pipeline passes 8s for the short safety classification
+// and 20s for the full menu synthesis.
+export async function callOpenRouter({ messages, model = 'openrouter/free', timeoutMs = 15000 } = {}) {
   const gateway = await discoverGateway();
   const baseUrl = gatewayBaseUrl(gateway, 'openrouter');
   if (!hasConnector(gateway, 'openrouter') || !baseUrl) {
@@ -188,6 +194,26 @@ export async function callOpenRouter({ messages, model = 'openrouter/free', time
     return { ok: true, via: 'sprites-gateway', model, text: String(text) };
   } catch (err) {
     return { ok: false, via: 'local-fallback', reason: `openrouter via gateway failed: ${err?.message || err}` };
+  }
+}
+
+// Extract the first JSON object from a model reply: strip ```json fences,
+// then take the span from the first `{` to the last `}`. Free models wrap
+// JSON in prose and fences, so a bare JSON.parse on the raw text fails.
+// Returns the parsed object, or null when nothing parses.
+export function extractJsonObject(text) {
+  if (typeof text !== 'string') return null;
+  let body = text;
+  // Free models usually wrap the JSON in a ```json fence — take its content.
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) body = fenced[1];
+  const match = body.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[0]);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
   }
 }
 

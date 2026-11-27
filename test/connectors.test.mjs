@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const { extractConnections } = await import('../src/connectors.mjs');
+const { extractConnections, extractJsonObject } = await import('../src/connectors.mjs');
 
 // The exact response shape proven live on Sprite le-frigo-vide, 2026-11-27:
 // GET https://api.sprites.dev/v1/gateway/list returns HTTP 200 with
@@ -46,4 +46,12 @@ test('empty connections list parses to no connectors (local-baseline)', () => {
 test('old alternate shapes still parse (gateways/connectors/data)', () => {
   const { connectors } = extractConnections({ gateways: [{ provider: 'openrouter', base_url: 'https://example.invalid/x' }] });
   assert.ok(connectors.includes('openrouter'));
+});
+
+test('extractJsonObject handles fenced, prose-wrapped and bare JSON', () => {
+  assert.deepEqual(extractJsonObject('{"hi": true}'), { hi: true });
+  assert.deepEqual(extractJsonObject('```json\n{"safe": false, "unsafe_items": ["dish soap"]}\n```'), { safe: false, unsafe_items: ['dish soap'] });
+  assert.deepEqual(extractJsonObject('Here is your menu:\n{"title": "Le Riz", "courses": [{"name": "Riz"}]}\nBon appétit.'), { title: 'Le Riz', courses: [{ name: 'Riz' }] });
+  assert.equal(extractJsonObject('no json here'), null);
+  assert.equal(extractJsonObject(null), null);
 });

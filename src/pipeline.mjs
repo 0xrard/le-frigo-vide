@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { QUOTES } from './quotes.mjs';
 import { getSystemPrompt, buildUserPrompt, buildSafetyPrompt } from './prompts.mjs';
-import { callOpenRouter, pineconeQuery, apifyFetchNews, embedText, cosineSimilarity } from './connectors.mjs';
+import { callOpenRouter, pineconeQuery, apifyFetchNews, embedText, cosineSimilarity, extractJsonObject } from './connectors.mjs';
 import { initDb, insertMeal, updateMealCheckpoint, logCheckpoint, updateCheckpointLog, recordIngredients, getRecurringCulprits, getIngredientEmbeddings } from './db.mjs';
 
 // Pipeline — 4 stages:
@@ -196,6 +196,7 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
     try {
       const res = await callOpenRouter({
         model: 'openrouter/free',
+        timeoutMs: 8000,
         messages: [
           { role: 'system', content: 'You are a food-safety classifier. Reply with JSON only.' },
           { role: 'user', content: buildSafetyPrompt({ ingredients, lang: language }) },
@@ -203,7 +204,7 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
       });
       if (res.ok && res.text) {
         safetyVia = 'openrouter/free';
-        const parsed = JSON.parse(res.text.match(/\{[\s\S]*\}/)?.[0] || '{}');
+        const parsed = extractJsonObject(res.text) || {};
         const confirmed = filterLlmUnsafeItems(parsed.unsafe_items);
         if (parsed.safe === false && confirmed.length) {
           safetyReason = parsed.reason || `Refused by OpenRouter safety check: ${confirmed.join(', ')}`;
@@ -234,16 +235,24 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
   try {
     const res = await callOpenRouter({
       model: 'openrouter/free',
+      timeoutMs: 20000,
       messages: [
         { role: 'system', content: getSystemPrompt(language) },
         { role: 'user', content: buildUserPrompt({ ingredients, lang: language, quote, dread: null, recurring }) },
       ],
     });
     if (res.ok && res.text) {
-      const parsed = JSON.parse(res.text.match(/\{[\s\S]*\}/)?.[0] || '{}');
-      if (parsed.title && Array.isArray(parsed.courses)) {
-        menu = { ...parsed, dignity_loss_percentage: dignity, quote: quote.text, quote_author: quote.author };
-        synthesisVia = 'openrouter/free';
+      const parsed = extractJsonObject(res.text) || {};
+      // Free models vary the keys: accept title/dish_title/name and
+      // courses/steps/dishes, and course items as strings or {name} objects.
+      const title = parsed.title || parsed.dish_title || parsed.name || null;
+      const rawCourses = parsed.courses || parsed.steps || parsed.dishes || null;
+      if (title && Array.isArray(rawCourses) && rawCourses.length) {
+        const courses = rawCourses.map((c) => (typeof c === 'string' ? { name: c } : { name: c?.name || c?.title || String(c ?? '') })).filter((c) => c.name);
+        if (courses.length) {
+          menu = { ...parsed, title, courses, dignity_loss_percentage: dignity, quote: quote.text, quote_author: quote.author };
+          synthesisVia = 'openrouter/free';
+        }
       }
     }
   } catch { /* fall through to local synthesis */ }
