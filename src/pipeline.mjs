@@ -244,18 +244,26 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
     if (res.ok && res.text) {
       const parsed = extractJsonObject(res.text) || {};
       // Free models vary the keys: accept title/dish_title/name and
-      // courses/steps/dishes, and course items as strings or {name} objects.
+      // courses/steps/dishes, and course items as strings, {name} objects,
+      // or one newline-separated string.
       const title = parsed.title || parsed.dish_title || parsed.name || null;
-      const rawCourses = parsed.courses || parsed.steps || parsed.dishes || null;
+      let rawCourses = parsed.courses || parsed.steps || parsed.dishes || null;
+      if (typeof rawCourses === 'string') rawCourses = rawCourses.split(/[\n;]+/).map((s) => s.trim()).filter(Boolean);
       if (title && Array.isArray(rawCourses) && rawCourses.length) {
         const courses = rawCourses.map((c) => (typeof c === 'string' ? { name: c } : { name: c?.name || c?.title || String(c ?? '') })).filter((c) => c.name);
         if (courses.length) {
           menu = { ...parsed, title, courses, dignity_loss_percentage: dignity, quote: quote.text, quote_author: quote.author };
           synthesisVia = 'openrouter/free';
+        } else {
+          console.error(`[synthesis] OpenRouter reply had title but no usable courses. Reply head: ${res.text.slice(0, 200)}`);
         }
+      } else {
+        console.error(`[synthesis] OpenRouter reply unusable (title=${JSON.stringify(title)}, courses=${JSON.stringify(rawCourses)?.slice(0, 120)}). Reply head: ${res.text.slice(0, 200)}`);
       }
+    } else if (res && !res.ok) {
+      console.error(`[synthesis] OpenRouter call failed: ${res.reason || 'unknown'}`);
     }
-  } catch { /* fall through to local synthesis */ }
+  } catch (err) { console.error(`[synthesis] exception: ${err?.message || err}`); /* fall through to local synthesis */ }
   if (!menu) {
     // Stage 4 needs the dread pairing before the menu is finalised, so fetch it first.
     const dreadRes = await apifyFetchNews();

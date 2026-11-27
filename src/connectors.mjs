@@ -193,6 +193,10 @@ export async function callOpenRouter({ messages, model = 'openrouter/free', time
     if (!text) throw new Error('empty completion from OpenRouter via gateway');
     return { ok: true, via: 'sprites-gateway', model, text: String(text) };
   } catch (err) {
+    // Log the reason server-side (service log) so a silent fallback on the
+    // Sprite can be diagnosed without guessing: timeout vs HTTP error vs
+    // bad payload. The client still gets an honest local-fallback.
+    console.error(`[openrouter] gateway call failed (${timeoutMs}ms): ${err?.message || err}`);
     return { ok: false, via: 'local-fallback', reason: `openrouter via gateway failed: ${err?.message || err}` };
   }
 }
