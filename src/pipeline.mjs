@@ -7,9 +7,14 @@ import { initDb, insertMeal, updateMealCheckpoint, logCheckpoint, updateCheckpoi
 // Pipeline — 4 stages:
 //  1. Food-Safety Guardrail (OpenRouter openrouter/free + deterministic local denylist)
 //  2. Memory: Pinecone recurring culprit + existential quote (local cosine fallback)
-//  3. Menu synthesis: OpenRouter openrouter/free + honest local fallback
-//  4. Global Dread Pairing (Apify, 4s timeout + local cache) + persistence
-//     + async `sprite-env checkpoint create` when dignity_loss_percentage > 80.
+//  3. Global Dread Pairing (Apify, 4s timeout + local cache) — fetched BEFORE
+//     synthesis so the LLM can write world_context from the real headline.
+//  4. Menu synthesis: OpenRouter openrouter/free + honest local fallback, then
+//     persistence + async `sprite-env checkpoint create` when
+//     dignity_loss_percentage > 80.
+// Menu contract (both paths): title, subtitle, existential_dread,
+// food_safety, aura_analysis, world_context, preparation[3-4],
+// sommelier, chef_note, dignity_loss_percentage, quote, quote_author.
 
 export const UNSAFE_PATTERNS = [
   /\bbatter(y|ies)\b/i, /\bAA\b/, /\bsoap\b/i, /\bdish\s*soap\b/i, /\bdetergent\b/i,
@@ -67,6 +72,13 @@ export function computeDignityLoss(ingredients) {
   return Math.max(5, Math.min(97, Math.round(score)));
 }
 
+// Existential dread tracks dignity, plus a little for each extra ingredient
+// waiting in the dark. Capped at 100: a fridge is never more than fully
+// dreadful. Used by the local fallback; the LLM reports its own score.
+export function computeExistentialDread(dignity, ingredientCount) {
+  return Math.max(0, Math.min(100, Math.round(dignity + 3 * Math.min(ingredientCount, 4))));
+}
+
 function pickQuote(ingredients) {
   const query = ingredients.join(' ');
   const qVec = embedText(query);
@@ -83,54 +95,112 @@ function pickQuote(ingredients) {
 }
 
 const TITLE_BY_KEYWORD = [
-  [/rice|nasi/i, { en: 'Le Riz Froid, Réinventé', id: 'Le Riz Froid, Réinventé' }],
-  [/egg|telur/i, { en: 'L’Oeuf Solitaire', id: 'L’Oeuf Solitaire' }],
-  [/chicken|ayam/i, { en: 'Le Poulet Repenti', id: 'Le Poulet Repenti' }],
-  [/potato|kentang/i, { en: 'La Pomme de Terre Résignée', id: 'La Pomme de Terre Résignée' }],
-  [/bread|roti/i, { en: 'Le Pain Perdu, Retrouvé', id: 'Le Pain Perdu, Retrouvé' }],
-  [/cheese|keju/i, { en: 'Le Fromage Qui Attendait', id: 'Le Fromage Qui Attendait' }],
-  [/yogurt|yoghurt/i, { en: 'Le Yaourt Expiré, Absolu', id: 'Le Yaourt Expiré, Absolu' }],
-  [/pickle|acar|timun/i, { en: 'Le Cornichon Unique', id: 'Le Cornichon Unique' }],
+  [/rice|nasi/i, { en: 'Risotto of Alienation atop the Ruins of Ambition', id: 'Risotto Keterasingan di Atas Puing-Puing Ambisi' }],
+  [/egg|telur/i, { en: 'The Solitary Egg, Patiently Waiting', id: 'Telur Tunggal yang Menunggu dengan Sabar' }],
+  [/chicken|ayam/i, { en: 'The Repentant Chicken in the Pan', id: 'Ayam yang Bertobat di Penggorengan' }],
+  [/potato|kentang/i, { en: 'The Resigned Potato at the Knife’s Edge', id: 'Kentang yang Pasrah di Ujung Pisau' }],
+  [/bread|roti/i, { en: 'Bread Lost, Then Found Again', id: 'Roti yang Hilang, Lalu Ditemukan Kembali' }],
+  [/cheese|keju/i, { en: 'The Cheese That Waited in the Dark', id: 'Keju yang Menunggu di Kegelapan' }],
+  [/yogurt|yoghurt/i, { en: 'The Expired Yogurt, Absolute', id: 'Yogurt Kedaluwarsa yang Mutlak' }],
+  [/pickle|acar|timun/i, { en: 'The Last Pickle Standing', id: 'Acar Tunggal yang Terakhir' }],
 ];
 
-export function localMenu({ ingredients, lang = 'en', quote, dread, recurring, dignity }) {
+// The local fallback carries the FULL four-section narrative, not a short
+// template: when OpenRouter is rate-limited or slow, the menu on screen
+// must still be long, metaphor-rich, and structured — the fallback is a
+// different voice, not a lesser menu.
+export function localMenu({ ingredients, lang = 'en', quote, dread, recurring, dignity, safetyVia = 'local-denylist' }) {
   const joined = ingredients.join(' ');
   const titleEntry = TITLE_BY_KEYWORD.find(([re]) => re.test(joined));
-  const title = titleEntry ? titleEntry[1][lang] || titleEntry[1].en : 'Le Frigo Vide';
+  const title = titleEntry ? titleEntry[1][lang] || titleEntry[1].en : (lang === 'id' ? 'Le Frigo Vide, Diciptakan Ulang' : 'Le Frigo Vide, Réinventé');
   const main = ingredients[0] || 'whatever remained';
-  const second = ingredients[1] || 'silence';
-  const third = ingredients[2] || 'the cold light of the fridge';
+  const second = ingredients[1] || null;
   const isId = lang === 'id';
   const subtitle = isId
     ? `Menu degustasi dari ${ingredients.length} bahan sisa. Tidak ada yang disembunyikan.`
     : `A tasting menu from ${ingredients.length} leftover ingredients. Nothing is hidden.`;
+  const recurringTop = recurring?.[0] || null;
+
+  // I. Fridge Aura Analysis — 2-3 sentences.
+  const recurringCount = recurringTop ? (recurringTop.count === 1 ? 'once' : `${recurringTop.count} times`) : null;
+  const auraAnalysis = isId
+    ? `Kulkas ini menyimpan ${ingredients.join(', ')} — potret seseorang yang berbelanja dengan optimisme dan memasak dengan penundaan. ${main} sudah menunggu lebih lama dari yang kau akui, dan ${second ? `${second} belajar menunggu diam-diam di sampingnya` : 'keheningan di rak bawah belajar menunggu bersamanya'}. ${recurringTop ? `Ini bukan pertama kalinya: ${recurringTop.ingredient} sudah muncul ${recurringTop.count} kali sebelumnya, dan polanya bukan lagi kebetulan.` : 'Tidak ada yang dibeli untuk malam ini. Semuanya dibeli untuk versi dirimu yang tidak pernah datang.'}`
+    : `The fridge holds ${ingredients.join(', ')} — a portrait of someone who shops with optimism and cooks with postponement. The ${main} has been waiting longer than you admit, and the ${second ? `${second} has learned to wait quietly beside it` : 'silence on the bottom shelf has learned to wait with it'}. ${recurringTop ? `This is not the first time: ${recurringTop.ingredient} has appeared ${recurringCount} before, and the pattern is no longer an accident.` : 'Nothing here was bought for tonight. Everything was bought for a version of you that never arrived.'}`;
+
+  // II. Outside World Context — exactly 2 sentences, from the real headline.
+  // The headline is embedded mid-sentence, so strip its trailing period and
+  // lowercase its first letter ("remember that The world..." is wrong).
+  const headline = (dread?.title || '').replace(/[.!?]+$/, '').trim();
+  const headlineInline = headline ? headline.charAt(0).toLowerCase() + headline.slice(1) : '';
+  const worldContext = isId
+    ? (headlineInline
+      ? `Selagi kau menumis ${main} ini, ingatlah bahwa ${headlineInline}. Setidaknya wajanmu hangat.`
+      : `Selagi dunia terus berputar, kulkasmu diam membeku. ${main} ini tidak meminta apa-apa selain panas, garam, dan seorang saksi.`)
+    : (headlineInline
+      ? `While you sauté this ${main}, remember that ${headlineInline}. At least your skillet is warm.`
+      : `While the world kept turning, your fridge stood still. Your ${main} asks for nothing more than heat, salt, and a witness.`);
+
+  // III. Preparation — 3-4 real steps, each fused with a metaphor.
+  const preparation = isId ? [
+    `Panaskan sedikit minyak di wajan terlebar yang kau punya. Masukkan ${main} — sekeras hatimu menghadapi ekspektasi keluarga di makan malam Thanksgiving — dan biarkan panas melakukan apa yang tidak mau dilakukan waktu.`,
+    `Tambahkan ${second || 'sisa apa pun yang masih ada'} dan aduk perlahan, sampai ia berhenti berpura-pura menjadi sesuatu yang lain. Beri garam, dan beri penerimaan bahwa inilah makan malam sekarang.`,
+    `Kecilkan api dan biarkan semuanya melunak bersama selama dua menit. Jangan terburu-buru; kulkas sudah menunggu berhari-hari, ia bisa menunggu dua menit lagi.`,
+    `Sajikan tanpa hiasan. Tidak ada yang perlu disembunyikan dan tidak ada yang perlu dirayakan — hanya hidangan hangat, yang berarti lebih dari ketiadaan.`,
+  ] : [
+    `Heat a splash of oil in the widest pan you own. Add the ${main} — as rigid as your heart facing family expectations at Thanksgiving dinner — and let the heat do what time refused to do.`,
+    `Add the ${second || 'whatever else remains'} and stir slowly, until it stops pretending to be something else. Season with salt, and with the acceptance that this is dinner now.`,
+    `Lower the heat and let everything soften together for two minutes. Do not rush it; the fridge waited days, it can wait two more minutes.`,
+    `Plate it without garnish. There is nothing to hide and nothing to celebrate — only a meal, served warm, which is more than nothing.`,
+  ];
+
+  // IV. Sommelier Pairing — 1-2 sentences; a second one when dignity is high.
+  const sommelier = isId
+    ? (dignity > 80
+      ? `Paling nikmat dengan air keran hangat, menatap dinding kosong selama empat menit tanpa mengecek ponsel. Kalau kau punya anggur, simpan saja — hidangan ini tidak pantas mendapatkannya, dan malam ini kau juga tidak.`
+      : `Paling nikmat dengan air keran hangat, menatap dinding kosong selama empat menit tanpa mengecek ponsel.`)
+    : (dignity > 80
+      ? `Best enjoyed with lukewarm tap water while staring at a blank wall for four minutes without checking your phone. If you have wine, save it — this meal does not deserve it, and neither do you, tonight.`
+      : `Best enjoyed with lukewarm tap water while staring at a blank wall for four minutes without checking your phone.`);
+
   const chefNote = isId
-    ? `Kulkas itu tidak berbohong. ${main} sudah menunggu terlalu lama, dan ${second} menemaninya dalam diam. Saya memasaknya dengan benar, karena memasak dengan benar adalah satu-satunya pemberontakan kecil yang tersisa. Martabat yang hilang: ${dignity} persen. Itu bukan salah Anda sepenuhnya. Sebagian besar.`
-    : `The fridge does not lie. The ${main} waited too long, and the ${second} kept it company in silence. I cooked them properly, because cooking properly is the only small rebellion left. Dignity lost: ${dignity} percent. That is not entirely your fault. Mostly.`;
+    ? `Kulkas itu tidak berbohong: ${main} sudah menunggu terlalu lama, dan saya memasaknya dengan benar karena itu satu-satunya pemberontakan kecil yang tersisa.`
+    : `The fridge does not lie: the ${main} waited too long, and I cooked it properly, because cooking properly is the only small rebellion left.`;
+
   return {
     title,
     subtitle,
-    courses: [
-      { name: isId ? 'Pembuka: Yang Tersisa' : 'Amuse-bouche: What Remained', description: isId ? `${main} dipanaskan perlahan, diberi garam, dan disajikan tanpa alasan.` : `${main}, warmed slowly, salted, and served without apology.`, technique: 'réchauffage lent' },
-      { name: isId ? 'Hidangan Utama: Kompromi' : 'Plat principal: The Compromise', description: isId ? `${second} dan ${third} dimasak bersama sampai mereka berhenti berpura-pura menjadi sesuatu yang lain.` : `${second} and ${third}, cooked together until they stop pretending to be something else.`, technique: 'mijotage' },
-      { name: isId ? 'Penutup: Penerimaan' : 'Dessert: Acceptance', description: isId ? 'Tidak ada pencuci mulut. Yang tersisa adalah kesadaran bahwa makan malam ini terjadi, dan itu sudah cukup.' : 'There is no dessert. What remains is the knowledge that this dinner happened, and that is enough.', technique: 'absence' },
-    ],
+    existential_dread: computeExistentialDread(dignity, ingredients.length),
+    food_safety: safetyVia === 'openrouter/free' ? 'Technically Edible (Verified)' : 'Technically Edible (Local check)',
+    aura_analysis: auraAnalysis,
+    world_context: worldContext,
+    preparation,
+    sommelier,
     chef_note: chefNote,
     dignity_loss_percentage: dignity,
     quote: quote?.text || '',
     quote_author: quote?.author || '',
     dread_pairing: dread?.title || null,
-    recurring_culprit: recurring?.[0]?.ingredient || null,
+    recurring_culprit: recurringTop?.ingredient || null,
   };
 }
 
 export function buildReceiptHtml(meal, menu) {
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const lines = (menu?.courses || []).map((c) => `<div class="line"><span>${esc(c.name)}</span><span>—</span></div>`).join('');
+  // New contract: numbered preparation steps; old menus (courses) fall back
+  // to their course names so an archived old meal still prints.
+  const steps = Array.isArray(menu?.preparation) && menu.preparation.length
+    ? menu.preparation
+    : (menu?.courses || []).map((c) => `${c.name} — ${c.description || ''}`);
+  const lines = steps.map((s, i) => `<p>${i + 1}. ${esc(s)}</p>`).join('');
+  const section = (label, text) => text ? `<p><strong>${label}</strong><br>${esc(text)}</p>` : '';
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Struk Dosa Kuliner — Meal #${meal.id}</title>
-<style>body{font-family:monospace;background:#fff;color:#111;max-width:320px;margin:24px auto;padding:16px;border:1px dashed #111}h1{font-size:14px;text-align:center;letter-spacing:2px}.c{text-align:center}.line{display:flex;justify-content:space-between;border-bottom:1px dotted #999;padding:4px 0}hr{border-top:1px dashed #111}</style></head>
+<style>body{font-family:monospace;background:#fff;color:#111;max-width:420px;margin:24px auto;padding:16px;border:1px dashed #111}h1{font-size:14px;text-align:center;letter-spacing:2px}.c{text-align:center}hr{border-top:1px dashed #111}</style></head>
 <body><h1>LE FRIGO VIDE</h1><p class="c">STRUK DOSA KULINER<br>Culinary Sin Receipt</p><hr>
-<p>Meal #${meal.id} — ${esc(meal.created_at || '')}<br>Title: ${esc(menu?.title || meal.title || '')}<br>Dignity loss: ${meal.dignity_loss_percentage}%<br>Ingredients: ${esc((meal.ingredients || []).join(', '))}</p><hr>${lines}
+<p>Meal #${meal.id} — ${esc(meal.created_at || '')}<br>Title: ${esc(menu?.title || meal.title || '')}<br>Existential Dread: ${menu?.existential_dread ?? '—'}/100 | Food Safety: ${esc(menu?.food_safety || 'Technically Edible')}<br>Dignity loss: ${meal.dignity_loss_percentage}%<br>Ingredients: ${esc((meal.ingredients || []).join(', '))}</p><hr>
+${section('I. Fridge Aura Analysis', menu?.aura_analysis)}
+${section('II. Outside World Context', menu?.world_context)}
+<p><strong>III. Preparation — With Quiet Resignation</strong></p>${lines}
+${section('IV. Sommelier Pairing', menu?.sommelier)}
 <p class="c">"${esc(menu?.quote || meal.quote || '')}"<br>— ${esc(menu?.quote_author || meal.quote_author || '')}</p>
 <p class="c">Dread pairing: ${esc(menu?.dread_pairing || meal.dread || 'none')}</p><hr><p class="c">Merci. Do not return.<br>Chef Jean-Paul</p></body></html>`;
 }
@@ -228,8 +298,14 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
   const quote = quoteResult.results?.[0] ? { text: quoteResult.results[0].text, author: quoteResult.results[0].author } : pickQuote(ingredients);
   void historyEmbeddings;
 
-  // Stage 3 — Menu synthesis.
+  // Stage 3 — Global Dread Pairing, fetched BEFORE synthesis so the LLM
+  // can write world_context from the real headline (not a placeholder).
+  const dreadRes = await apifyFetchNews();
+  const dread = dreadRes.news;
+
+  // Stage 4 — Menu synthesis.
   const dignity = computeDignityLoss(ingredients);
+  const foodSafety = safetyVia === 'openrouter/free' ? 'Technically Edible (Verified)' : 'Technically Edible (Local check)';
   let menu = null;
   let synthesisVia = 'local-fallback';
   let synthesisNote = null;
@@ -238,14 +314,13 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
       model: 'openrouter/free',
       // 60s + capped output: the free model needs >20s for a full menu
       // (proven by the 20000ms abort in the Sprite service log, 2026-11-27),
-      // and the richer prompt (2-3 sentences per course) needs more room
-      // than 700 tokens. max_tokens 1000 keeps the menu complete while
-      // cutting the long tail of a slow free model.
+      // and the four-section narrative is longer than the old 2-course menu.
+      // max_tokens 1200 fits aura + world + 3-4 long steps + sommelier.
       timeoutMs: 60000,
-      maxTokens: 1000,
+      maxTokens: 1200,
       messages: [
         { role: 'system', content: getSystemPrompt(language) },
-        { role: 'user', content: buildUserPrompt({ ingredients, lang: language, quote, dread: null, recurring }) },
+        { role: 'user', content: buildUserPrompt({ ingredients, lang: language, quote, dread, recurring }) },
       ],
     });
     // When the fallback is caused by the free tier's rate limit, say so
@@ -259,31 +334,44 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
     if (res.ok && res.text) {
       const parsed = extractJsonObject(res.text) || {};
       // Free models vary the keys: accept title/dish_title/name and
-      // courses/steps/dishes, and course items as strings, {name} objects,
-      // or one newline-separated string.
+      // preparation/steps/instructions — or the old courses shape, mapped
+      // to steps ("name — description"). Steps may be strings, {step} /
+      // {text} / {description} objects, or one newline-separated string.
       const title = parsed.title || parsed.dish_title || parsed.name || null;
-      let rawCourses = parsed.courses || parsed.steps || parsed.dishes || null;
-      if (typeof rawCourses === 'string') rawCourses = rawCourses.split(/[\n;]+/).map((s) => s.trim()).filter(Boolean);
-      if (title && Array.isArray(rawCourses) && rawCourses.length) {
-        const courses = rawCourses.map((c) => (typeof c === 'string' ? { name: c } : { name: c?.name || c?.title || String(c ?? '') })).filter((c) => c.name);
-        if (courses.length) {
-          menu = { ...parsed, title, courses, dignity_loss_percentage: dignity, quote: quote.text, quote_author: quote.author };
-          synthesisVia = 'openrouter/free';
-        } else {
-          console.error(`[synthesis] OpenRouter reply had title but no usable courses. Reply head: ${res.text.slice(0, 200)}`);
-        }
+      let rawPrep = parsed.preparation || parsed.steps || parsed.instructions || null;
+      if (typeof rawPrep === 'string') rawPrep = rawPrep.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+      let preparation = Array.isArray(rawPrep)
+        ? rawPrep.map((s) => (typeof s === 'string' ? s : s?.step || s?.text || s?.instruction || s?.description || '')).map((s) => String(s).trim()).filter(Boolean)
+        : [];
+      if (!preparation.length && Array.isArray(parsed.courses)) {
+        preparation = parsed.courses
+          .map((c) => (typeof c === 'string' ? c : `${c?.name || ''} — ${c?.description || ''}`.trim()))
+          .map((s) => s.replace(/^—\s*|\s*—$/, '').trim()).filter(Boolean);
+      }
+      if (title && preparation.length >= 2) {
+        const dreadScore = Number.isInteger(parsed.existential_dread) && parsed.existential_dread >= 0 && parsed.existential_dread <= 100
+          ? parsed.existential_dread
+          : computeExistentialDread(dignity, ingredients.length);
+        menu = {
+          ...parsed,
+          title,
+          preparation,
+          existential_dread: dreadScore,
+          food_safety: foodSafety,
+          dignity_loss_percentage: dignity,
+          quote: quote.text,
+          quote_author: quote.author,
+        };
+        synthesisVia = 'openrouter/free';
       } else {
-        console.error(`[synthesis] OpenRouter reply unusable (title=${JSON.stringify(title)}, courses=${JSON.stringify(rawCourses)?.slice(0, 120)}). Reply head: ${res.text.slice(0, 200)}`);
+        console.error(`[synthesis] OpenRouter reply unusable (title=${JSON.stringify(title)}, preparation steps=${preparation.length}). Reply head: ${res.text.slice(0, 200)}`);
       }
     } else if (res && !res.ok) {
       console.error(`[synthesis] OpenRouter call failed: ${res.reason || 'unknown'}`);
     }
   } catch (err) { console.error(`[synthesis] exception: ${err?.message || err}`); /* fall through to local synthesis */ }
   if (!menu) {
-    // Stage 4 needs the dread pairing before the menu is finalised, so fetch it first.
-    const dreadRes = await apifyFetchNews();
-    const dread = dreadRes.news;
-    menu = localMenu({ ingredients, lang: language, quote, dread, recurring, dignity });
+    menu = localMenu({ ingredients, lang: language, quote, dread, recurring, dignity, safetyVia });
     menu.dread_pairing = dread?.title || null;
     menu.synthesis_via = synthesisVia;
     menu.memory_via = quoteResult.via;
@@ -298,18 +386,17 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
     return { ok: true, rejected: false, meal_id: mealId, menu, dignity_loss_percentage: dignity, safety_via: safetyVia, synthesis_via: synthesisVia, synthesis_note: synthesisNote, memory_via: quoteResult.via, dread_via: dreadRes.via, dread, recurring, checkpoint };
   }
 
-  // OpenRouter path: still needs Stage 4 (dread) + persistence + checkpoint.
-  const dreadRes = await apifyFetchNews();
-  menu.dread_pairing = dreadRes.news?.title || null;
+  // OpenRouter path: persistence + checkpoint (dread already attached).
+  menu.dread_pairing = dread?.title || null;
   menu.synthesis_via = synthesisVia;
   menu.memory_via = quoteResult.via;
   menu.dread_via = dreadRes.via;
   const mealId = insertMeal({
     lang: language, ingredients, title: menu.title, dignity_loss_percentage: dignity,
-    quote: quote.text, quote_author: quote.author, dread: dreadRes.news?.title || null,
+    quote: quote.text, quote_author: quote.author, dread: dread?.title || null,
     menu_json: menu, rejected: false,
   });
   let checkpoint = null;
   if (dignity > 80) checkpoint = triggerCheckpoint(mealId, dignity);
-  return { ok: true, rejected: false, meal_id: mealId, menu, dignity_loss_percentage: dignity, safety_via: safetyVia, synthesis_via: synthesisVia, memory_via: quoteResult.via, dread_via: dreadRes.via, dread: dreadRes.news, recurring, checkpoint };
+  return { ok: true, rejected: false, meal_id: mealId, menu, dignity_loss_percentage: dignity, safety_via: safetyVia, synthesis_via: synthesisVia, memory_via: quoteResult.via, dread_via: dreadRes.via, dread, recurring, checkpoint };
 }

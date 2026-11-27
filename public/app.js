@@ -24,6 +24,13 @@ const I18N = {
     historyTitle: 'Recent meals',
     rejectionTitle: 'Refused.',
     printReceipt: 'Print receipt',
+    auraHeading: 'I. Fridge Aura Analysis',
+    worldHeading: 'II. Outside World Context',
+    prepHeading: 'III. Preparation — With Quiet Resignation',
+    sommelierHeading: 'IV. Sommelier Pairing',
+    dreadScoreLabel: 'Existential Dread',
+    safetyLabel: 'Food Safety',
+    dignityScoreLabel: 'Dignity Loss',
     archiveHint: 'Box upload runs only when the Box connector is installed; otherwise the receipt downloads locally.',
     noMeals: 'No meals yet.',
     checkpoint: (id) => `Dignity loss above 80%. A checkpoint was requested: Lowest Point of the Week Snapshot (log #${id}).`,
@@ -46,6 +53,13 @@ const I18N = {
     historyTitle: 'Hidangan terakhir',
     rejectionTitle: 'Ditolak.',
     printReceipt: 'Cetak struk',
+    auraHeading: 'I. Analisis Aura Kulkas',
+    worldHeading: 'II. Konteks Dunia Luar',
+    prepHeading: 'III. Cara Pembuatan — Dengan Nada Pasrah',
+    sommelierHeading: 'IV. Catatan Sommelier',
+    dreadScoreLabel: 'Kecemasan Eksistensial',
+    safetyLabel: 'Keamanan Pangan',
+    dignityScoreLabel: 'Kehilangan Martabat',
     archiveHint: 'Upload Box hanya berjalan bila connector Box terpasang; jika tidak, struk diunduh secara lokal.',
     noMeals: 'Belum ada hidangan.',
     checkpoint: (id) => `Kehilangan martabat di atas 80%. Checkpoint diminta: Lowest Point of the Week Snapshot (log #${id}).`,
@@ -73,6 +87,10 @@ function applyLang() {
   $('history-title').textContent = s.historyTitle;
   $('rejection-title').textContent = s.rejectionTitle;
   $('print-receipt-btn').textContent = s.printReceipt;
+  $('section-aura-heading').textContent = s.auraHeading;
+  $('section-world-heading').textContent = s.worldHeading;
+  $('section-prep-heading').textContent = s.prepHeading;
+  $('section-sommelier-heading').textContent = s.sommelierHeading;
   $('archive-hint').textContent = s.archiveHint;
   $('lang-toggle').textContent = lang === 'en' ? 'EN / ID' : 'ID / EN';
 }
@@ -127,21 +145,29 @@ async function refreshState() {
 
 function renderMenu(result) {
   const menu = result.menu;
+  const s = t();
   $('menu-title').textContent = menu.title || 'Le Frigo Vide';
   $('menu-subtitle').textContent = menu.subtitle || '';
-  const courses = $('courses-list');
-  courses.innerHTML = '';
-  for (const c of menu.courses || []) {
-    const li = document.createElement('li');
-    const strong = document.createElement('strong');
-    strong.textContent = c.name;
-    const desc = document.createElement('div');
-    desc.textContent = c.description || '';
-    const tech = document.createElement('small');
-    tech.textContent = c.technique ? `Technique: ${c.technique}` : '';
-    li.append(strong, desc, tech);
-    courses.append(li);
+  // Header & status: Existential Dread | Food Safety | Dignity Loss.
+  const dreadScore = Number.isInteger(menu.existential_dread) ? menu.existential_dread : '—';
+  $('score-line').textContent =
+    `${s.dreadScoreLabel}: ${dreadScore}/100 | ${s.safetyLabel}: ${menu.food_safety || 'Technically Edible'} | ${s.dignityScoreLabel}: ${result.dignity_loss_percentage}%`;
+  $('aura-text').textContent = menu.aura_analysis || '';
+  $('world-text').textContent = menu.world_context || '';
+  // Preparation steps; a menu stored before this format carries courses
+  // instead — map those to steps so old meals still render.
+  let steps = Array.isArray(menu.preparation) ? menu.preparation : [];
+  if (!steps.length && Array.isArray(menu.courses)) {
+    steps = menu.courses.map((c) => (typeof c === 'string' ? c : `${c.name || ''} — ${c.description || ''}`.trim()));
   }
+  const prep = $('prep-list');
+  prep.innerHTML = '';
+  for (const step of steps) {
+    const li = document.createElement('li');
+    li.textContent = step;
+    prep.append(li);
+  }
+  $('sommelier-text').textContent = menu.sommelier || '';
   $('chef-note').textContent = menu.chef_note || '';
   $('quote-text').textContent = menu.quote ? `"${menu.quote}"` : '';
   $('quote-author').textContent = menu.quote_author ? `— ${menu.quote_author}` : '';
@@ -160,7 +186,7 @@ function renderMenu(result) {
     cp.hidden = true;
   }
   $('receipt-content').textContent =
-    `LE FRIGO VIDE\nSTRUK DOSA KULINER\n----------------\nMeal #${result.meal_id}\n${menu.title}\nDignity loss: ${result.dignity_loss_percentage}%\nQuote: "${menu.quote || ''}" — ${menu.quote_author || ''}\nDread: ${menu.dread_pairing || 'none'}\nSynthesis: ${result.synthesis_via || 'local-fallback'}\nMemory: ${result.memory_via || 'local-fallback'}\n----------------\nMerci. Do not return.`;
+    `LE FRIGO VIDE\nSTRUK DOSA KULINER\n----------------\nMeal #${result.meal_id}\n${menu.title}\nExistential Dread: ${dreadScore}/100 | Food Safety: ${menu.food_safety || 'Technically Edible'}\nDignity loss: ${result.dignity_loss_percentage}%\nQuote: "${menu.quote || ''}" — ${menu.quote_author || ''}\nDread: ${menu.dread_pairing || 'none'}\nSynthesis: ${result.synthesis_via || 'local-fallback'}\nMemory: ${result.memory_via || 'local-fallback'}\n----------------\nMerci. Do not return.`;
   currentMealId = result.meal_id;
   $('archive-btn').disabled = false;
   $('print-receipt-btn').disabled = false;

@@ -29,10 +29,13 @@ body { margin:0; background:#ece5d3; color:var(--ink); font-family:Georgia,'Time
 .rejection-box { border:1px solid var(--red); background:#fdf0f0; padding:14px; margin-top:14px; }
 .rejection-box h3 { margin:0 0 6px; color:var(--red); }
 .rejection-box p { margin:0; }
-.courses-list { padding-left:22px; margin:18px 0; }
-.courses-list li { margin-bottom:12px; }
-.courses-list strong { display:block; font-size:17px; }
-.courses-list small { color:var(--muted); }
+.score-line { text-align:center; font-size:13px; letter-spacing:1px; border-top:1px solid var(--gold); border-bottom:1px solid var(--gold); padding:8px 4px; margin:18px 0 4px; line-height:1.6; }
+.score-line strong { letter-spacing:1px; }
+.menu-section { margin:18px 0; }
+.menu-section h3 { font-size:14px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); margin:0 0 8px; font-weight:400; }
+.menu-section p { margin:0; line-height:1.7; }
+.prep-list { padding-left:22px; margin:0; }
+.prep-list li { margin-bottom:12px; line-height:1.7; }
 .chef-note { border-top:1px solid #d8cba6; border-bottom:1px solid #d8cba6; padding:12px 0; line-height:1.6; }
 blockquote { margin:16px 0; font-style:italic; }
 blockquote p { margin:0 0 4px; }

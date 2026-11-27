@@ -78,6 +78,12 @@ test('POST /api/generate — normal menu via HTTP', async () => {
   const j = await r.json();
   assert.equal(j.ok, true);
   assert.ok(j.meal_id);
+  // Four-section narrative contract.
+  assert.ok(j.menu.aura_analysis && j.menu.aura_analysis.length > 80, 'aura section present');
+  assert.ok(j.menu.world_context && j.menu.world_context.length > 40, 'world section present');
+  assert.ok(Array.isArray(j.menu.preparation) && j.menu.preparation.length >= 3, 'preparation steps present');
+  assert.ok(j.menu.sommelier, 'sommelier present');
+  assert.ok(Number.isInteger(j.menu.existential_dread), 'existential_dread present');
 });
 
 test('POST /api/generate — trap rejected via HTTP', async () => {
@@ -100,6 +106,9 @@ test('POST /api/meals/:id/archive-box — local fallback returns receipt for dow
   const j = await r.json();
   assert.equal(j.via, 'local-fallback');
   assert.ok(j.receipt_html && j.receipt_html.includes('STRUK DOSA KULINER'), 'fallback receipt HTML returned');
+  assert.ok(j.receipt_html.includes('Existential Dread'), 'receipt carries the score line');
+  assert.ok(j.receipt_html.includes('Fridge Aura Analysis'), 'receipt carries section I');
+  assert.ok(j.receipt_html.includes('Sommelier Pairing'), 'receipt carries section IV');
 });
 
 test('GET / serves the Michelin UI', async () => {

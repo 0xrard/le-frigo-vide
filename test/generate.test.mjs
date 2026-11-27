@@ -26,7 +26,13 @@ test('1 — menu normal: cold rice, one egg, wilted lettuce', async () => {
   assert.equal(result.rejected, false);
   assert.ok(result.meal_id, 'meal_id persisted');
   assert.ok(result.menu.title, 'menu has a title');
-  assert.ok(Array.isArray(result.menu.courses) && result.menu.courses.length >= 2, 'menu has courses');
+  // New four-section narrative contract (2026-11-27).
+  assert.ok(typeof result.menu.aura_analysis === 'string' && result.menu.aura_analysis.length > 80, 'I. Fridge Aura Analysis present');
+  assert.ok(typeof result.menu.world_context === 'string' && result.menu.world_context.length > 40, 'II. Outside World Context present');
+  assert.ok(Array.isArray(result.menu.preparation) && result.menu.preparation.length >= 3, 'III. Preparation has 3-4 steps');
+  assert.ok(typeof result.menu.sommelier === 'string' && result.menu.sommelier.length > 30, 'IV. Sommelier Pairing present');
+  assert.ok(Number.isInteger(result.menu.existential_dread) && result.menu.existential_dread >= 0 && result.menu.existential_dread <= 100, 'existential_dread 0-100');
+  assert.match(result.menu.food_safety || '', /Technically Edible/, 'food_safety label present');
   assert.ok(result.menu.quote, 'menu carries a quote');
   assert.ok(result.menu.quote_author, 'menu credits the quote author');
   assert.ok(Number.isInteger(result.dignity_loss_percentage), 'dignity is an integer');
@@ -34,6 +40,21 @@ test('1 — menu normal: cold rice, one egg, wilted lettuce', async () => {
   assert.ok(result.dread, 'dread pairing present (fallback counts)');
   // Honest fallback: no gateway in this VM, so synthesis must say local-fallback.
   assert.equal(result.synthesis_via, 'local-fallback');
+});
+
+test('1c — local fallback menu is long and narrative, not a one-line template', async () => {
+  // The user asked (2026-11-27) for the fallback to carry the full four
+  // sections with real length and metaphor, so a 429 still shows a rich menu.
+  const result = await generateMenu({ ingredients: 'cold rice, one egg, wilted lettuce', lang: 'en' });
+  assert.equal(result.synthesis_via, 'local-fallback');
+  assert.ok(result.menu.aura_analysis.length > 150, `aura too short: ${result.menu.aura_analysis.length}`);
+  assert.ok(result.menu.world_context.length > 50, `world too short: ${result.menu.world_context.length}`);
+  assert.equal(result.menu.preparation.length, 4, 'fallback preparation has exactly 4 steps');
+  for (const step of result.menu.preparation) assert.ok(step.length > 40, `prep step too short: ${step}`);
+  assert.ok(result.menu.sommelier.length > 40, 'sommelier too short');
+  assert.match(result.menu.title, /Risotto of Alienation/, 'poetic title for the rice case');
+  assert.match(result.menu.aura_analysis, /cold rice/, 'aura names the main ingredient');
+  assert.match(result.menu.world_context, /cold rice|skillet/, 'world context references cooking');
 });
 
 test('1b — LLM safety verdict cannot expand the denylist (Sprite 2026-11-27 regression)', () => {
@@ -73,7 +94,7 @@ test('3 — dignity_loss > 80 memicu checkpoint (sprite-env checkpoint create, l
   assert.ok(/lowest point/i.test(latest.note || ''), 'log note names the Lowest Point snapshot');
 });
 
-test('4 — toggle bahasa ID: chef_note Indonesia, judul tetap Prancis', async () => {
+test('4 — toggle bahasa ID: chef_note Indonesia, judul puitis Indonesia', async () => {
   const result = await generateMenu({ ingredients: 'cold rice, one egg, wilted lettuce', lang: 'id' });
   assert.equal(result.ok, true);
   // Indonesian by common words, not one marker word: the live LLM writes
@@ -81,8 +102,13 @@ test('4 — toggle bahasa ID: chef_note Indonesia, judul tetap Prancis', async (
   // (Sprite 2026-11-27: "Nasi dingin, selada layu..." failed the old check).
   assert.match(result.menu.chef_note, /nasi|telur|kulkas|sudah|tidak|yang/i, `expected Indonesian chef_note, got: ${result.menu.chef_note}`);
   assert.ok(!result.menu.chef_note.includes('The fridge does not lie'), 'chef_note must not be English when lang=id');
-  // Title stays French.
-  assert.match(result.menu.title, /Le |L’|La /);
+  // Poetic Indonesian title (user spec 2026-11-27), not the old French title.
+  assert.match(result.menu.title, /Risotto Keterasingan/);
+  // The four sections exist in Indonesian too.
+  assert.ok(result.menu.aura_analysis.length > 100, 'aura ID present');
+  assert.equal(result.menu.preparation.length, 4, 'preparation ID has 4 steps');
+  assert.ok(result.menu.sommelier.length > 30, 'sommelier ID present');
+  assert.match(result.menu.aura_analysis, /kulkas/i, 'aura ID mentions the fridge');
 });
 
 test('frontend IDs: every getElementById in app.js exists in index.html', () => {
