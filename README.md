@@ -1,6 +1,6 @@
 # Le Frigo Vide
 
-![Le Frigo Vide logo](public/logo.svg)
+<img src="public/logo.svg" alt="Le Frigo Vide logo" width="200">
 
 ## *The fridge is empty. The chef is not impressed.*
 
