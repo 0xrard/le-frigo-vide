@@ -3,14 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Le Frigo Vide — Chef Jean-Paul</title>
+<title>Le Frigo Vide</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <header class="topbar">
-  <div>
-    <h1>Le Frigo Vide</h1>
-    <p class="tagline" id="tagline">A personal culinary agent. The fridge is empty. The chef is not impressed.</p>
+  <div class="brand">
+    <img src="/logo.svg" class="brand-logo" alt="Le Frigo Vide logo — an empty fridge wearing a chef's toque" width="52" height="52">
+    <div>
+      <h1>Le Frigo Vide</h1>
+      <p class="tagline" id="tagline">A personal culinary agent. The fridge is empty. The chef is not impressed.</p>
+    </div>
   </div>
   <button id="lang-toggle" type="button" aria-label="Toggle language EN / ID">EN / ID</button>
 </header>
@@ -79,8 +83,7 @@
   <!-- RIGHT: thermal receipt + Gateway X-Ray -->
   <aside class="side-panel" aria-label="Receipt and gateway status">
     <section class="receipt" aria-label="Thermal receipt">
-      <h2 id="receipt-title">Struk Dosa Kuliner</h2>
-      <p class="receipt-sub">Culinary Sin Receipt</p>
+      <h2 id="receipt-title">Culinary Sin Receipt</h2>
       <div class="dignity">
         <span id="dignity-label">Dignity loss</span>
         <strong id="dignity-value">—</strong>
@@ -111,7 +114,7 @@ after the chef speaks.</pre>
   </aside>
 </main>
 
-<footer><p>Le Frigo Vide · Fly.io Hacksgiving 2026 · Node.js, zero npm dependencies, zero API keys in env. Chef Jean-Paul does not use emoji.</p></footer>
+<footer><p>Le Frigo Vide · Fly.io Hacksgiving 2026</p></footer>
 <script src="/app.js" type="module"></script>
 </body>
 </html>

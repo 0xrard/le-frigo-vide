@@ -105,7 +105,7 @@ test('POST /api/meals/:id/archive-box — local fallback returns receipt for dow
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.via, 'local-fallback');
-  assert.ok(j.receipt_html && j.receipt_html.includes('STRUK DOSA KULINER'), 'fallback receipt HTML returned');
+  assert.ok(j.receipt_html && j.receipt_html.includes('CULINARY SIN RECEIPT'), 'fallback receipt HTML returned');
   assert.ok(j.receipt_html.includes('Existential Dread'), 'receipt carries the score line');
   assert.ok(j.receipt_html.includes('Fridge Aura Analysis'), 'receipt carries section I');
   assert.ok(j.receipt_html.includes('Sommelier Pairing'), 'receipt carries section IV');
@@ -119,4 +119,22 @@ test('GET / serves the Michelin UI', async () => {
   assert.ok(text.includes('id="ingredients-input"'));
   assert.ok(text.includes('id="preset-trap"'));
   assert.ok(text.includes('id="lang-toggle"'));
+  // Revisions 2026-11-27: tab title is just the name, footer is trimmed,
+  // receipt title is English, and the header carries the logo.
+  assert.ok(text.includes('<title>Le Frigo Vide</title>'), 'tab title is just "Le Frigo Vide"');
+  assert.ok(!text.includes('Chef Jean-Paul</title>'), 'no "— Chef Jean-Paul" in the tab title');
+  assert.ok(text.includes('Le Frigo Vide · Fly.io Hacksgiving 2026</p>'), 'footer trimmed to name + event');
+  assert.ok(!text.includes('zero npm dependencies'), 'footer no longer lists the zero-deps pitch');
+  assert.ok(text.includes('Culinary Sin Receipt'), 'receipt title is English');
+  assert.ok(!text.includes('Struk Dosa Kuliner'), 'no Indonesian receipt title left in the UI');
+  assert.ok(text.includes('src="/logo.svg"'), 'header logo present');
+});
+
+test('GET /logo.svg serves the brand mark as SVG', async () => {
+  const r = await fetch(`${BASE}/logo.svg`);
+  assert.equal(r.status, 200);
+  assert.ok((r.headers.get('content-type') || '').includes('image/svg+xml'), 'SVG content-type');
+  const text = await r.text();
+  assert.ok(text.includes('<svg'), 'valid SVG document');
+  assert.ok(text.includes('Le Frigo Vide logo'), 'logo carries its label');
 });

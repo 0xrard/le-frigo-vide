@@ -329,7 +329,7 @@ export async function apifyFetchNews() {
   return { ok: false, via: 'local-fallback', reason: 'apify connector not installed; serving seeded fallback headline', news: seed };
 }
 
-// --- Box: archive the "Struk Dosa Kuliner" receipt ---------------------------
+// --- Box: archive the "Culinary Sin Receipt" --------------------------------
 export async function boxUpload({ filename, content, contentType = 'text/html' } = {}) {
   const gateway = await discoverGateway();
   const baseUrl = gatewayBaseUrl(gateway, 'box');

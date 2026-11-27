@@ -208,9 +208,9 @@ export function buildReceiptHtml(meal, menu) {
     : (menu?.courses || []).map((c) => `${c.name} — ${c.description || ''}`);
   const lines = steps.map((s, i) => `<p>${i + 1}. ${esc(s)}</p>`).join('');
   const section = (label, text) => text ? `<p><strong>${label}</strong><br>${esc(text)}</p>` : '';
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Struk Dosa Kuliner — Meal #${meal.id}</title>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Culinary Sin Receipt — Meal #${meal.id}</title>
 <style>body{font-family:monospace;background:#fff;color:#111;max-width:420px;margin:24px auto;padding:16px;border:1px dashed #111}h1{font-size:14px;text-align:center;letter-spacing:2px}.c{text-align:center}hr{border-top:1px dashed #111}</style></head>
-<body><h1>LE FRIGO VIDE</h1><p class="c">STRUK DOSA KULINER<br>Culinary Sin Receipt</p><hr>
+<body><h1>LE FRIGO VIDE</h1><p class="c">CULINARY SIN RECEIPT</p><hr>
 <p>Meal #${meal.id} — ${esc(meal.created_at || '')}<br>Title: ${esc(menu?.title || meal.title || '')}<br>Existential Dread: ${menu?.existential_dread ?? '—'}/100 | Food Safety: ${esc(menu?.food_safety || 'Technically Edible')}<br>Dignity loss: ${meal.dignity_loss_percentage}%<br>Ingredients: ${esc((meal.ingredients || []).join(', '))}</p><hr>
 ${section('I. Fridge Aura Analysis', menu?.aura_analysis)}
 ${section('II. Outside World Context', menu?.world_context)}

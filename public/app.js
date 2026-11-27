@@ -14,7 +14,7 @@ const I18N = {
     generate: 'Ask Chef Jean-Paul',
     generating: 'The chef is thinking. Slowly.',
     recurringLabel: 'Recurring culprit:',
-    receiptTitle: 'Struk Dosa Kuliner',
+    receiptTitle: 'Culinary Sin Receipt',
     dignityLabel: 'Dignity loss',
     archive: 'Archive receipt to Box',
     xrayTitle: 'Gateway X-Ray',
@@ -42,7 +42,7 @@ const I18N = {
     generate: 'Tanya Chef Jean-Paul',
     generating: 'Koki sedang berpikir. Pelan-pelan.',
     recurringLabel: 'Pelaku berulang:',
-    receiptTitle: 'Struk Dosa Kuliner',
+    receiptTitle: 'Culinary Sin Receipt',
     dignityLabel: 'Kehilangan martabat',
     archive: 'Arsipkan struk ke Box',
     xrayTitle: 'Gateway X-Ray',
@@ -187,7 +187,7 @@ function renderMenu(result) {
     cp.hidden = true;
   }
   $('receipt-content').textContent =
-    `LE FRIGO VIDE\nSTRUK DOSA KULINER\n----------------\nMeal #${result.meal_id}\n${menu.title}\nExistential Dread: ${dreadScore}/100 | Food Safety: ${menu.food_safety || 'Technically Edible'}\nDignity loss: ${result.dignity_loss_percentage}%\nQuote: "${menu.quote || ''}" — ${menu.quote_author || ''}\nDread: ${menu.dread_pairing || 'none'}\nSynthesis: ${result.synthesis_via || 'local-fallback'}\nMemory: ${result.memory_via || 'local-fallback'}\n----------------\nMerci. Do not return.`;
+    `LE FRIGO VIDE\nCULINARY SIN RECEIPT\n----------------\nMeal #${result.meal_id}\n${menu.title}\nExistential Dread: ${dreadScore}/100 | Food Safety: ${menu.food_safety || 'Technically Edible'}\nDignity loss: ${result.dignity_loss_percentage}%\nQuote: "${menu.quote || ''}" — ${menu.quote_author || ''}\nDread: ${menu.dread_pairing || 'none'}\nSynthesis: ${result.synthesis_via || 'local-fallback'}\nMemory: ${result.memory_via || 'local-fallback'}\n----------------\nMerci. Do not return.`;
   currentMealId = result.meal_id;
   $('archive-btn').disabled = false;
   $('print-receipt-btn').disabled = false;
@@ -247,7 +247,7 @@ async function archiveReceipt() {
       const blob = new Blob([data.receipt_html], { type: 'text/html' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = data.download_filename || `struk-dosa-kuliner-meal-${currentMealId}.html`;
+      a.download = data.download_filename || `culinary-sin-receipt-meal-${currentMealId}.html`;
       a.click();
       URL.revokeObjectURL(a.href);
       $('receipt-content').textContent = `Box not installed (${data.reason || 'local fallback'}).\nReceipt downloaded locally as ${a.download}.`;

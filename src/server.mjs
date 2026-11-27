@@ -99,7 +99,7 @@ export function createServer() {
         if (!meal) return sendJson(res, 404, { ok: false, error: 'meal not found' });
         const menu = meal.menu_json || {};
         const receipt = buildReceiptHtml(meal, menu);
-        const filename = `struk-dosa-kuliner-meal-${meal.id}.html`;
+        const filename = `culinary-sin-receipt-meal-${meal.id}.html`;
         const uploaded = await boxUpload({ filename, content: receipt, contentType: 'text/html' });
         if (uploaded.ok) markMealArchived(meal.id);
         // Local fallback: hand the receipt back so the browser can download it.
