@@ -46,11 +46,18 @@ test('GET /connected?format=json — rawApiKeysInEnv 0, honest connector status'
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.rawApiKeysInEnv, 0, `expected 0 raw keys, got ${j.rawApiKeysInEnv} (${j.rawApiKeyNames})`);
+  assert.equal(j.gateway.source, 'https://api.sprites.dev/v1/gateway/list');
+  // Environment-aware: on a Sprite the gateway IS live, so connectors it
+  // lists may claim connected; in this VM there is no gateway, so none may.
+  // What must always hold: `connected` matches discovery exactly, and
+  // `via` matches `connected`. A connector that is only in the available
+  // catalog (e.g. Box on the Sprite) must still report local-fallback.
   for (const name of ['openrouter', 'pinecone', 'apify', 'box']) {
     assert.ok(j.connectors[name], `missing connector ${name}`);
-    // No gateway in this VM: nothing may claim to be connected.
-    assert.equal(j.connectors[name].connected, false, `${name} must not claim connected without a gateway`);
-    assert.equal(j.connectors[name].via, 'local-fallback');
+    const discovered = (j.gateway.connectors || []).includes(name);
+    assert.equal(j.connectors[name].connected, discovered, `${name}.connected must match gateway discovery (discovered=${discovered})`);
+    assert.equal(j.connectors[name].via, discovered ? 'sprites-gateway' : 'local-fallback', `${name}.via must match connected`);
+    if (discovered) assert.ok(j.connectors[name].baseUrl, `${name} connected but has no baseUrl`);
   }
 });
 
