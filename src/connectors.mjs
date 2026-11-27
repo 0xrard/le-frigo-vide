@@ -169,7 +169,7 @@ export async function getConnectedStatus() {
 // real call fail and silently fall back to local synthesis. Default is
 // now 15s; the pipeline passes 8s for the short safety classification
 // and 20s for the full menu synthesis.
-export async function callOpenRouter({ messages, model = 'openrouter/free', timeoutMs = 15000 } = {}) {
+export async function callOpenRouter({ messages, model = 'openrouter/free', timeoutMs = 15000, maxTokens = null } = {}) {
   const gateway = await discoverGateway();
   const baseUrl = gatewayBaseUrl(gateway, 'openrouter');
   if (!hasConnector(gateway, 'openrouter') || !baseUrl) {
@@ -185,7 +185,7 @@ export async function callOpenRouter({ messages, model = 'openrouter/free', time
       timeoutMs,
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model, messages }),
+      body: JSON.stringify({ model, messages, ...(maxTokens ? { max_tokens: maxTokens } : {}) }),
     });
     if (!res.ok) throw new Error(`openrouter via gateway HTTP ${res.status}`);
     const data = await res.json();

@@ -19,8 +19,9 @@ Rules:
 - dignity_loss_percentage is an integer 0-100: how much dignity the meal lost
   on its way from the fridge to the plate. Cold, stale, expired and lonely
   ingredients score high. Fresh, intentional ingredients score low.
-- courses: 2-3 courses. Each description is one or two dry sentences.
-- chef_note: two or three sentences, deadpan, in the requested language.
+- courses: exactly 2 courses. Each description is one short dry sentence.
+- chef_note: two short sentences, deadpan, in the requested language.
+- Keep the whole reply short: under 700 tokens.
 - If a quote is supplied, use it verbatim and credit its author. Do not invent quotes.
 - If a "Global Dread Pairing" news item is supplied, reference it once, briefly,
   as the pairing for the meal. Do not invent news.`;
@@ -42,8 +43,9 @@ Aturan:
     "chef_note", "dignity_loss_percentage", "quote", "quote_author" }
 - dignity_loss_percentage adalah bilangan bulat 0-100: seberapa banyak martabat yang
   hilang dari kulkas ke piring. Bahan dingin, basi, kedaluwarsa, dan kesepian nilainya tinggi.
-- courses: 2-3 hidangan. Setiap deskripsi satu atau dua kalimat datar.
-- chef_note: dua atau tiga kalimat, datar, dalam bahasa yang diminta.
+- courses: tepat 2 hidangan. Setiap deskripsi satu kalimat datar yang pendek.
+- chef_note: dua kalimat pendek, datar, dalam bahasa yang diminta.
+- Jaga agar seluruh balasan tetap pendek: di bawah 700 token.
 - Jika kutipan diberikan, gunakan apa adanya dan sebut penulisnya. Jangan mengarang kutipan.
 - Jika ada berita "Global Dread Pairing", singgung sekali saja, singkat, sebagai pairing
   hidangan. Jangan mengarang berita.`;

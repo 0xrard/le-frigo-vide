@@ -76,7 +76,10 @@ test('3 — dignity_loss > 80 memicu checkpoint (sprite-env checkpoint create, l
 test('4 — toggle bahasa ID: chef_note Indonesia, judul tetap Prancis', async () => {
   const result = await generateMenu({ ingredients: 'cold rice, one egg, wilted lettuce', lang: 'id' });
   assert.equal(result.ok, true);
-  assert.ok(result.menu.chef_note.includes('Kulkas'), `expected Indonesian chef_note, got: ${result.menu.chef_note}`);
+  // Indonesian by common words, not one marker word: the live LLM writes
+  // fluent Indonesian without ever using the local fallback's word "Kulkas"
+  // (Sprite 2026-11-27: "Nasi dingin, selada layu..." failed the old check).
+  assert.match(result.menu.chef_note, /nasi|telur|kulkas|sudah|tidak|yang/i, `expected Indonesian chef_note, got: ${result.menu.chef_note}`);
   assert.ok(!result.menu.chef_note.includes('The fridge does not lie'), 'chef_note must not be English when lang=id');
   // Title stays French.
   assert.match(result.menu.title, /Le |L’|La /);
