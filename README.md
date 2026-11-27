@@ -18,9 +18,14 @@ Zero third-party npm dependencies. Only Node built-ins:
 ## Zero-key Sprites Connectors
 
 No `.env`, no hardcoded API key. Every outbound call first checks the
-Fly Sprites Gateway (`GET http://localhost:43123/v1/gateway/list`,
+Fly Sprites Gateway (`GET https://api.sprites.dev/v1/gateway/list`,
 see https://sprites.dev) and falls back honestly when a connector is
-not installed:
+not installed. The gateway list returns
+`{ available: [...], connections: [{ provider, gateway_base_url, ... }] }`
+with no Authorization header; per-connector calls go to
+`<gateway_base_url>/v1/chat/completions` etc. (proven live on Sprite
+le-frigo-vide, 2026-11-27; the old `localhost:43123` address was wrong —
+nothing listens there on a Sprite):
 
 | Connector | Free-tier use | Fallback when not installed |
 |---|---|---|

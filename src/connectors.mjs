@@ -3,12 +3,24 @@ import { getLatestNews, cacheNews } from './db.mjs';
 // Zero-Key Sprites Connectors.
 // No .env file, no hardcoded API key anywhere in this repo.
 // Every outbound call first checks the Fly Sprites Gateway:
-//   GET http://localhost:43123/v1/gateway/list
+//   GET https://api.sprites.dev/v1/gateway/list
 // (documented at https://sprites.dev) and falls back honestly to a local
 // implementation when a connector is not installed. A connector is never
 // reported as connected unless the gateway actually lists it.
+//
+// PROVEN LIVE on Sprite le-frigo-vide, 2026-11-27: that endpoint returns
+// HTTP 200 with { available: [...catalog...], connections: [
+//   { provider: "openrouter", gateway_base_url:
+//     "https://api.sprites.dev/v1/gateway/openrouter/<connection-id>", ... },
+//   ... ] } and NO Authorization header is sent — the Sprite's network
+// identity is injected by the gateway itself. Outside a Sprite the same
+// endpoint returns {"error": ...}, which is treated as "no gateway".
+// The old address http://localhost:43123/v1/gateway/list was WRONG on a
+// Sprite: nothing listens on port 43123 there (verified: connection refused).
+// Per-connector calls go to <gateway_base_url>/v1/chat/completions etc.,
+// e.g. POST https://api.sprites.dev/v1/gateway/openrouter/<id>/v1/chat/completions
 
-export const GATEWAY_LIST_URL = 'http://localhost:43123/v1/gateway/list';
+export const GATEWAY_LIST_URL = 'https://api.sprites.dev/v1/gateway/list';
 export const GATEWAY_DOCS_URL = 'https://sprites.dev';
 const GATEWAY_TIMEOUT_MS = 1200;
 const APIFY_TIMEOUT_MS = 4000;
@@ -47,37 +59,58 @@ export async function discoverGateway({ force = false } = {}) {
     const res = await fetchWithTimeout(GATEWAY_LIST_URL, { timeoutMs: GATEWAY_TIMEOUT_MS });
     if (!res.ok) throw new Error(`gateway list HTTP ${res.status}`);
     const data = await res.json();
-    const connectors = extractConnectorNames(data);
-    gatewayCache = { available: true, source: GATEWAY_LIST_URL, connectors, raw: data, error: null };
+    if (data?.error) throw new Error(`gateway list error: ${data.error}`);
+    // Live Sprites shape: { available: [...], connections: [{ provider,
+    // gateway_base_url, id, ... }] }. Older/alternate shapes use gateways /
+    // connectors / data as the list — accept those too, but `connections`
+    // wins because it is the shape proven live on 2026-11-27.
+    const { connectors, connections } = extractConnections(data);
+    const availableProviders = Array.isArray(data?.available)
+      ? data.available.map((a) => String(a?.provider || a?.name || '')).filter(Boolean)
+      : [];
+    gatewayCache = {
+      available: true, source: GATEWAY_LIST_URL,
+      connectors, connections, availableProviders,
+      raw: data, error: null,
+    };
   } catch (err) {
-    gatewayCache = { available: false, source: GATEWAY_LIST_URL, connectors: [], raw: null, error: String(err?.message || err) };
+    gatewayCache = {
+      available: false, source: GATEWAY_LIST_URL,
+      connectors: [], connections: {}, availableProviders: [],
+      raw: null, error: String(err?.message || err),
+    };
   }
   gatewayCacheAt = now;
   return gatewayCache;
 }
 
-function extractConnectorNames(data) {
-  if (!data) return [];
-  const out = new Set();
-  const push = (v) => { if (typeof v === 'string' && v) out.add(v.toLowerCase()); };
-  const walk = (node) => {
-    if (!node) return;
-    if (typeof node === 'string') { push(node); return; }
-    if (Array.isArray(node)) { node.forEach(walk); return; }
-    if (typeof node === 'object') {
-      for (const [k, v] of Object.entries(node)) {
-        if (/^(name|id|connector|service|provider)$/i.test(k)) push(v);
-        else walk(v);
-      }
+export function extractConnections(data) {
+  const list = data?.connections ?? data?.gateways ?? data?.connectors ?? data?.data ?? [];
+  const names = new Set();
+  const byProvider = {};
+  for (const entry of Array.isArray(list) ? list : []) {
+    if (typeof entry === 'string') {
+      if (entry) { names.add(entry.toLowerCase()); byProvider[entry.toLowerCase()] = { baseUrl: null, id: entry }; }
+      continue;
     }
-  };
-  walk(data.gateways ?? data.connectors ?? data.services ?? data);
-  return [...out];
+    if (!entry || typeof entry !== 'object') continue;
+    const provider = String(entry.provider || entry.name || entry.id || '').toLowerCase();
+    if (!provider) continue;
+    const baseUrl = entry.gateway_base_url || entry.base_url || entry.baseUrl
+      || entry.url || entry.gateway_url || entry.gatewayUrl || null;
+    names.add(provider);
+    byProvider[provider] = { baseUrl, id: entry.id || null, provider };
+  }
+  return { connectors: [...names], connections: byProvider };
 }
 
 function hasConnector(gateway, ...names) {
   if (!gateway?.available) return false;
   return names.some((n) => gateway.connectors.some((c) => c.includes(n)));
+}
+
+function gatewayBaseUrl(gateway, name) {
+  return gateway?.connections?.[name]?.baseUrl || null;
 }
 
 export async function getConnectedStatus() {
@@ -93,6 +126,8 @@ export async function getConnectedStatus() {
       source: gateway.source,
       docs: GATEWAY_DOCS_URL,
       connectors: gateway.connectors,
+      connections: gateway.connections || {},
+      availableProviders: gateway.availableProviders || [],
       error: gateway.error,
     },
     connectors: {
@@ -101,25 +136,25 @@ export async function getConnectedStatus() {
         hasConnector(gateway, 'openrouter')
           ? 'OpenRouter reachable via Sprites Gateway (free model openrouter/free).'
           : 'OpenRouter not installed on this Sprite. Using honest local fallback: deterministic safety denylist + local menu synthesis. No key is used.',
-        { model: 'openrouter/free' }),
+        { model: 'openrouter/free', baseUrl: gatewayBaseUrl(gateway, 'openrouter') }),
       pinecone: status('pinecone', hasConnector(gateway, 'pinecone'),
         hasConnector(gateway, 'pinecone') ? 'sprites-gateway' : 'local-fallback',
         hasConnector(gateway, 'pinecone')
           ? 'Pinecone reachable via Sprites Gateway.'
           : 'Pinecone not installed on this Sprite. Using local cosine similarity over SQLite ingredient_history + quotes seed.',
-        {}),
+        { baseUrl: gatewayBaseUrl(gateway, 'pinecone') }),
       apify: status('apify', hasConnector(gateway, 'apify'),
         hasConnector(gateway, 'apify') ? 'sprites-gateway' : 'local-fallback',
         hasConnector(gateway, 'apify')
           ? 'Apify reachable via Sprites Gateway (4s timeout).'
           : 'Apify not installed on this Sprite. Using local news_cache fallback (seeded grim headline, no live fetch).',
-        { timeoutMs: APIFY_TIMEOUT_MS }),
+        { timeoutMs: APIFY_TIMEOUT_MS, baseUrl: gatewayBaseUrl(gateway, 'apify') }),
       box: status('box', hasConnector(gateway, 'box'),
         hasConnector(gateway, 'box') ? 'sprites-gateway' : 'local-fallback',
         hasConnector(gateway, 'box')
           ? 'Box reachable via Sprites Gateway (POST /upload/files/content).'
           : 'Box not installed on this Sprite. Receipt is offered as a local download instead of an upload.',
-        { uploadPath: '/upload/files/content' }),
+        { uploadPath: '/upload/files/content', baseUrl: gatewayBaseUrl(gateway, 'box') }),
     },
     timestamp: new Date().toISOString(),
   };
@@ -130,14 +165,17 @@ export async function getConnectedStatus() {
 // failure falls back to local synthesis. We never send a key ourselves.
 export async function callOpenRouter({ messages, model = 'openrouter/free', timeoutMs = 4000 } = {}) {
   const gateway = await discoverGateway();
-  if (!hasConnector(gateway, 'openrouter')) {
+  const baseUrl = gatewayBaseUrl(gateway, 'openrouter');
+  if (!hasConnector(gateway, 'openrouter') || !baseUrl) {
     return { ok: false, via: 'local-fallback', reason: 'openrouter connector not installed on this Sprite (gateway list does not include it)' };
   }
-  // Gateway-routed OpenRouter endpoint (Sprites Gateway convention).
-  // If the gateway does not expose this route, the attempt fails honestly
-  // and the caller uses the local fallback.
+  // Gateway-routed OpenRouter endpoint, proven live 2026-11-27:
+  // POST <gateway_base_url>/v1/chat/completions, e.g.
+  // https://api.sprites.dev/v1/gateway/openrouter/<connection-id>/v1/chat/completions
+  // No Authorization header — the gateway injects the credential itself.
+  // If the call fails, the caller uses the local fallback.
   try {
-    const res = await fetchWithTimeout('http://localhost:43123/v1/gateway/openrouter/chat/completions', {
+    const res = await fetchWithTimeout(`${baseUrl}/v1/chat/completions`, {
       timeoutMs,
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -190,7 +228,7 @@ export async function pineconeQuery({ text, candidates = [] } = {}) {
   if (!hasConnector(gateway, 'pinecone')) {
     return { ok: false, via: 'local-fallback', reason: 'pinecone connector not installed; local cosine similarity over SQLite used', results: scored };
   }
-  return { ok: true, via: 'sprites-gateway', results: scored, note: 'Gateway Pinecone returned; scores shown are local cosine for transparency.' };
+  return { ok: true, via: 'sprites-gateway', results: scored, note: 'Pinecone gateway discovered; scores are local cosine until a Pinecone index is configured for this app.' };
 }
 
 // --- Apify: one grim real-world news item, 4s timeout, local cache fallback --
@@ -202,28 +240,13 @@ export const FALLBACK_NEWS = [
 
 export async function apifyFetchNews() {
   const gateway = await discoverGateway();
-  if (hasConnector(gateway, 'apify')) {
-    try {
-      const res = await fetchWithTimeout('http://localhost:43123/v1/gateway/apify/news', {
-        timeoutMs: APIFY_TIMEOUT_MS,
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ query: 'world news grim strange', limit: 1 }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const item = data?.items?.[0] || data?.[0] || null;
-        if (item?.title) {
-          const news = { title: item.title, source: item.source || 'apify via sprites-gateway', url: item.url || null };
-          try { cacheNews({ title: news.title, source: news.source, payload: news }); } catch {}
-          return { ok: true, via: 'sprites-gateway', news };
-        }
-      }
-      throw new Error(`apify via gateway HTTP ${res.status}`);
-    } catch (err) {
-      // fall through to cache / seeded fallback below
-    }
-  }
+  // Honest note: the Sprites Apify gateway exposes Actors, not a generic
+  // "news" endpoint (the old /v1/gateway/apify/news URL never existed), and
+  // no Actor is configured for this app. So even when the Apify connector
+  // is discovered live, the dread pairing still comes from the local
+  // news_cache / seeded fallback — same honest behaviour as the live
+  // Sprite build, whose news stage also reports local-baseline.
+  void gateway;
   // Local fallback: most recent cached news, else seeded grim headline.
   try {
     const cached = getLatestNews();
@@ -239,9 +262,10 @@ export async function apifyFetchNews() {
 // --- Box: archive the "Struk Dosa Kuliner" receipt ---------------------------
 export async function boxUpload({ filename, content, contentType = 'text/html' } = {}) {
   const gateway = await discoverGateway();
-  if (hasConnector(gateway, 'box')) {
+  const baseUrl = gatewayBaseUrl(gateway, 'box');
+  if (hasConnector(gateway, 'box') && baseUrl) {
     try {
-      const res = await fetchWithTimeout('http://localhost:43123/v1/gateway/box/upload/files/content', {
+      const res = await fetchWithTimeout(`${baseUrl}/upload/files/content`, {
         timeoutMs: APIFY_TIMEOUT_MS,
         method: 'POST',
         headers: { 'content-type': contentType, 'x-filename': filename },
