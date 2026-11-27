@@ -121,11 +121,16 @@ export function localMenu({ ingredients, lang = 'en', quote, dread, recurring, d
     : `A tasting menu from ${ingredients.length} leftover ingredients. Nothing is hidden.`;
   const recurringTop = recurring?.[0] || null;
 
-  // I. Fridge Aura Analysis — 2-3 sentences.
+  // I. Fridge Aura Analysis — 2-3 sentences, closing with one playful,
+  // obviously absurd line in a philosopher's voice (satire, not a real
+  // quotation — the quote field itself stays verbatim from the quotes DB).
   const recurringCount = recurringTop ? (recurringTop.count === 1 ? 'once' : `${recurringTop.count} times`) : null;
-  const auraAnalysis = isId
+  const auraBase = isId
     ? `Kulkas ini menyimpan ${ingredients.join(', ')} — potret seseorang yang berbelanja dengan optimisme dan memasak dengan penundaan. ${main} sudah menunggu lebih lama dari yang kau akui, dan ${second ? `${second} belajar menunggu diam-diam di sampingnya` : 'keheningan di rak bawah belajar menunggu bersamanya'}. ${recurringTop ? `Ini bukan pertama kalinya: ${recurringTop.ingredient} sudah muncul ${recurringTop.count} kali sebelumnya, dan polanya bukan lagi kebetulan.` : 'Tidak ada yang dibeli untuk malam ini. Semuanya dibeli untuk versi dirimu yang tidak pernah datang.'}`
     : `The fridge holds ${ingredients.join(', ')} — a portrait of someone who shops with optimism and cooks with postponement. The ${main} has been waiting longer than you admit, and the ${second ? `${second} has learned to wait quietly beside it` : 'silence on the bottom shelf has learned to wait with it'}. ${recurringTop ? `This is not the first time: ${recurringTop.ingredient} has appeared ${recurringCount} before, and the pattern is no longer an accident.` : 'Nothing here was bought for tonight. Everything was bought for a version of you that never arrived.'}`;
+  const auraAnalysis = auraBase + (isId
+    ? ` Seperti kata Camus, "Satu-satunya pertanyaan filosofis yang benar-benar serius adalah apakah kita harus memasak ${main} ini sekarang, atau membiarkannya membusuk sebagai bentuk perlawanan terhadap kapitalisme."`
+    : ` As Camus might have put it, "The only truly serious philosophical question is whether to cook this ${main} now, or let it rot as a form of resistance against capitalism."`);
 
   // II. Outside World Context — exactly 2 sentences, from the real headline.
   // The headline is embedded mid-sentence, so strip its trailing period and
@@ -140,16 +145,24 @@ export function localMenu({ ingredients, lang = 'en', quote, dread, recurring, d
       ? `While you sauté this ${main}, remember that ${headlineInline}. At least your skillet is warm.`
       : `While the world kept turning, your fridge stood still. Your ${main} asks for nothing more than heat, salt, and a witness.`);
 
-  // III. Preparation — 3-4 real steps, each fused with a metaphor.
+  // III. Preparation — 3-4 real steps, each fused with a metaphor and
+  // naming the actual ingredient it uses. Step 3 uses the third
+  // ingredient when one exists (e.g. the sachet sauce as held-back anger);
+  // otherwise it is the low-heat softening step.
+  const third = ingredients[2] || null;
   const preparation = isId ? [
     `Panaskan sedikit minyak di wajan terlebar yang kau punya. Masukkan ${main} — sekeras hatimu menghadapi ekspektasi keluarga di makan malam Thanksgiving — dan biarkan panas melakukan apa yang tidak mau dilakukan waktu.`,
-    `Tambahkan ${second || 'sisa apa pun yang masih ada'} dan aduk perlahan, sampai ia berhenti berpura-pura menjadi sesuatu yang lain. Beri garam, dan beri penerimaan bahwa inilah makan malam sekarang.`,
-    `Kecilkan api dan biarkan semuanya melunak bersama selama dua menit. Jangan terburu-buru; kulkas sudah menunggu berhari-hari, ia bisa menunggu dua menit lagi.`,
+    `Masukkan ${second || 'sisa apa pun yang masih ada'} dan aduk cepat, sebelum ia menyadari nasibnya — persis seperti rencanamu di awal tahun yang kini entah ke mana.`,
+    third
+      ? `Tuangkan ${third} sebagai metafora kemarahan yang tertahan. Aduk hingga merata dan sajikan di atas piring retak favoritmu.`
+      : `Kecilkan api dan biarkan semuanya melunak bersama selama dua menit. Jangan terburu-buru; kulkas sudah menunggu berhari-hari, ia bisa menunggu dua menit lagi.`,
     `Sajikan tanpa hiasan. Tidak ada yang perlu disembunyikan dan tidak ada yang perlu dirayakan — hanya hidangan hangat, yang berarti lebih dari ketiadaan.`,
   ] : [
     `Heat a splash of oil in the widest pan you own. Add the ${main} — as rigid as your heart facing family expectations at Thanksgiving dinner — and let the heat do what time refused to do.`,
-    `Add the ${second || 'whatever else remains'} and stir slowly, until it stops pretending to be something else. Season with salt, and with the acceptance that this is dinner now.`,
-    `Lower the heat and let everything soften together for two minutes. Do not rush it; the fridge waited days, it can wait two more minutes.`,
+    `Add the ${second || 'whatever else remains'} and stir quickly, before it realizes its fate — just like your plans from the start of the year, which are now nowhere to be found.`,
+    third
+      ? `Pour in the ${third} as a metaphor for the anger you have been holding back. Stir until it is evenly distributed, then serve it on your favorite cracked plate.`
+      : `Lower the heat and let everything soften together for two minutes. Do not rush it; the fridge waited days, it can wait two more minutes.`,
     `Plate it without garnish. There is nothing to hide and nothing to celebrate — only a meal, served warm, which is more than nothing.`,
   ];
 
@@ -170,7 +183,9 @@ export function localMenu({ ingredients, lang = 'en', quote, dread, recurring, d
     title,
     subtitle,
     existential_dread: computeExistentialDread(dignity, ingredients.length),
-    food_safety: safetyVia === 'openrouter/free' ? 'Technically Edible (Verified)' : 'Technically Edible (Local check)',
+    food_safety: isId
+      ? (safetyVia === 'openrouter/free' ? 'Aman Secara Teknis (Terverifikasi OpenRouter)' : 'Aman Secara Teknis (Pemeriksaan Lokal)')
+      : (safetyVia === 'openrouter/free' ? 'Technically Edible (Verified by OpenRouter)' : 'Technically Edible (Local check)'),
     aura_analysis: auraAnalysis,
     world_context: worldContext,
     preparation,
@@ -305,7 +320,9 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en' } 
 
   // Stage 4 — Menu synthesis.
   const dignity = computeDignityLoss(ingredients);
-  const foodSafety = safetyVia === 'openrouter/free' ? 'Technically Edible (Verified)' : 'Technically Edible (Local check)';
+  const foodSafety = language === 'id'
+    ? (safetyVia === 'openrouter/free' ? 'Aman Secara Teknis (Terverifikasi OpenRouter)' : 'Aman Secara Teknis (Pemeriksaan Lokal)')
+    : (safetyVia === 'openrouter/free' ? 'Technically Edible (Verified by OpenRouter)' : 'Technically Edible (Local check)');
   let menu = null;
   let synthesisVia = 'local-fallback';
   let synthesisNote = null;

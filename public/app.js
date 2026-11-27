@@ -24,13 +24,13 @@ const I18N = {
     historyTitle: 'Recent meals',
     rejectionTitle: 'Refused.',
     printReceipt: 'Print receipt',
-    auraHeading: 'I. Fridge Aura Analysis',
-    worldHeading: 'II. Outside World Context',
-    prepHeading: 'III. Preparation — With Quiet Resignation',
-    sommelierHeading: 'IV. Sommelier Pairing',
-    dreadScoreLabel: 'Existential Dread',
-    safetyLabel: 'Food Safety',
-    dignityScoreLabel: 'Dignity Loss',
+    auraHeading: 'Fridge Aura Analysis',
+    worldHeading: 'Outside World Context',
+    prepHeading: 'Preparation (With Quiet Resignation)',
+    sommelierHeading: 'Sommelier Pairing',
+    dreadScoreLabel: 'Existential Crisis Score',
+    safetyLabel: 'Food Safety Status',
+    tonightLabel: "Tonight's Menu",
     archiveHint: 'Box upload runs only when the Box connector is installed; otherwise the receipt downloads locally.',
     noMeals: 'No meals yet.',
     checkpoint: (id) => `Dignity loss above 80%. A checkpoint was requested: Lowest Point of the Week Snapshot (log #${id}).`,
@@ -53,13 +53,13 @@ const I18N = {
     historyTitle: 'Hidangan terakhir',
     rejectionTitle: 'Ditolak.',
     printReceipt: 'Cetak struk',
-    auraHeading: 'I. Analisis Aura Kulkas',
-    worldHeading: 'II. Konteks Dunia Luar',
-    prepHeading: 'III. Cara Pembuatan — Dengan Nada Pasrah',
-    sommelierHeading: 'IV. Catatan Sommelier',
-    dreadScoreLabel: 'Kecemasan Eksistensial',
-    safetyLabel: 'Keamanan Pangan',
-    dignityScoreLabel: 'Kehilangan Martabat',
+    auraHeading: 'Analisis Aura Kulkas',
+    worldHeading: 'Konteks Dunia Luar',
+    prepHeading: 'Cara Pembuatan (Dengan Nada Pasrah)',
+    sommelierHeading: 'Catatan Sommelier',
+    dreadScoreLabel: 'Skor Krisis Eksistensial',
+    safetyLabel: 'Status Keamanan Pangan',
+    tonightLabel: 'Menu Malam Ini',
     archiveHint: 'Upload Box hanya berjalan bila connector Box terpasang; jika tidak, struk diunduh secara lokal.',
     noMeals: 'Belum ada hidangan.',
     checkpoint: (id) => `Kehilangan martabat di atas 80%. Checkpoint diminta: Lowest Point of the Week Snapshot (log #${id}).`,
@@ -91,6 +91,7 @@ function applyLang() {
   $('section-world-heading').textContent = s.worldHeading;
   $('section-prep-heading').textContent = s.prepHeading;
   $('section-sommelier-heading').textContent = s.sommelierHeading;
+  $('menu-tonight-label').textContent = s.tonightLabel;
   $('archive-hint').textContent = s.archiveHint;
   $('lang-toggle').textContent = lang === 'en' ? 'EN / ID' : 'ID / EN';
 }
@@ -146,12 +147,15 @@ async function refreshState() {
 function renderMenu(result) {
   const menu = result.menu;
   const s = t();
-  $('menu-title').textContent = menu.title || 'Le Frigo Vide';
+  // "MENU MALAM INI: "Title"" — the label appears above the quoted title.
+  $('menu-tonight-label').hidden = false;
+  $('menu-title').textContent = menu.title ? `"${menu.title}"` : 'Le Frigo Vide';
   $('menu-subtitle').textContent = menu.subtitle || '';
-  // Header & status: Existential Dread | Food Safety | Dignity Loss.
+  // Header & status: Existential Crisis Score | Food Safety Status.
+  // Dignity loss lives in the receipt panel (and the receipt), not here.
   const dreadScore = Number.isInteger(menu.existential_dread) ? menu.existential_dread : '—';
   $('score-line').textContent =
-    `${s.dreadScoreLabel}: ${dreadScore}/100 | ${s.safetyLabel}: ${menu.food_safety || 'Technically Edible'} | ${s.dignityScoreLabel}: ${result.dignity_loss_percentage}%`;
+    `${s.dreadScoreLabel}: ${dreadScore}/100 | ${s.safetyLabel}: ${menu.food_safety || 'Technically Edible'}`;
   $('aura-text').textContent = menu.aura_analysis || '';
   $('world-text').textContent = menu.world_context || '';
   // Preparation steps; a menu stored before this format carries courses
@@ -196,6 +200,8 @@ function renderRejection(result) {
   $('rejection-text').textContent = result.reason || 'Refused.';
   $('rejection-box').hidden = false;
   $('menu-result').hidden = true;
+  $('menu-tonight-label').hidden = true;
+  $('menu-title').textContent = 'Le Frigo Vide';
   $('dignity-value').textContent = '—';
   $('dignity-bar').style.width = '0%';
   $('receipt-content').textContent = `LE FRIGO VIDE\nREFUSED — Meal #${result.meal_id || '?'}\n${result.reason || ''}`;

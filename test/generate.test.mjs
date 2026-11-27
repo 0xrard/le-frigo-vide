@@ -55,6 +55,12 @@ test('1c — local fallback menu is long and narrative, not a one-line template'
   assert.match(result.menu.title, /Risotto of Alienation/, 'poetic title for the rice case');
   assert.match(result.menu.aura_analysis, /cold rice/, 'aura names the main ingredient');
   assert.match(result.menu.world_context, /cold rice|skillet/, 'world context references cooking');
+  // Example format (user 2026-11-27): aura ends with a playful Camus-style
+  // line; step 2 carries the fate metaphor; step 3 uses the third ingredient.
+  assert.match(result.menu.aura_analysis, /Camus/, 'aura ends with the Camus-style line');
+  assert.match(result.menu.preparation[1], /fate|plans from the start of the year/i, 'step 2 has the fate metaphor');
+  assert.match(result.menu.preparation[2], /wilted lettuce/i, 'step 3 uses the third ingredient');
+  assert.match(result.menu.food_safety, /Technically Edible \(Local check\)/, 'fallback food safety is honest about the local check');
 });
 
 test('1b — LLM safety verdict cannot expand the denylist (Sprite 2026-11-27 regression)', () => {
@@ -109,6 +115,9 @@ test('4 — toggle bahasa ID: chef_note Indonesia, judul puitis Indonesia', asyn
   assert.equal(result.menu.preparation.length, 4, 'preparation ID has 4 steps');
   assert.ok(result.menu.sommelier.length > 30, 'sommelier ID present');
   assert.match(result.menu.aura_analysis, /kulkas/i, 'aura ID mentions the fridge');
+  assert.match(result.menu.aura_analysis, /Camus/, 'aura ID ends with the Camus-style line');
+  assert.match(result.menu.food_safety, /Aman Secara Teknis \(Pemeriksaan Lokal\)/, 'ID food safety is honest about the local check');
+  assert.match(result.menu.preparation[2], /wilted lettuce/i, 'step 3 ID uses the third ingredient');
 });
 
 test('frontend IDs: every getElementById in app.js exists in index.html', () => {
