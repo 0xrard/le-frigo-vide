@@ -46,9 +46,10 @@ test('raw animal products are flagged for cooking, not for disposal', () => {
 });
 
 test('the LLM may never expand the refusal set to spoiled food (regression)', () => {
-  assert.deepEqual(filterLlmUnsafeItems(['expired yogurt']), []);
-  assert.deepEqual(filterLlmUnsafeItems(['expired yogurt', 'cold rice']), []);
-  assert.deepEqual(filterLlmUnsafeItems(['2 AA batteries']).length, 1);
+  assert.deepEqual(filterLlmUnsafeItems(['expired yogurt'], ['expired yogurt']), []);
+  assert.deepEqual(filterLlmUnsafeItems(['expired yogurt', 'cold rice'], ['expired yogurt', 'cold rice']), []);
+  assert.deepEqual(filterLlmUnsafeItems(['2 AA batteries'], ['2 AA batteries']).length, 1);
+  assert.deepEqual(filterLlmUnsafeItems(['battery'], ['cold rice']), [], 'a hallucinated battery does not reject safe food');
 });
 
 test('labels are honest: never "Technically Edible (Verified)"', () => {

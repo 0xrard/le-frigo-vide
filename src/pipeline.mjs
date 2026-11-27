@@ -17,9 +17,13 @@ export { classifyIngredient, classifyIngredients, coreIdentity, mainIngredientPa
 
 // Pipeline — 4 stages:
 //  1. Food-Safety Guardrail (OpenRouter openrouter/free + deterministic local denylist)
-//  2. Memory: Pinecone recurring culprit + existential quote (local cosine fallback)
-//  3. Global Dread Pairing (Apify, 4s timeout + local cache) — fetched BEFORE
-//     synthesis so the LLM can write world_context from the real headline.
+//  2. Local Memory — SQLite ingredient history + cosine similarity
+//     (recurring culprits + existential quote). Pinecone integration is
+//     discovered but not yet configured for live queries.
+//  3. Fictional Global Dread Pairing (Local Fallback) — no Apify Actor
+//     is configured, so the dread headline is a seeded fictional one
+//     from the local news_cache (4s timeout) — fetched BEFORE synthesis
+//     so the LLM can write world_context from the headline.
 //  4. Menu synthesis: OpenRouter openrouter/free + honest local fallback, then
 //     persistence + async `sprite-env checkpoint create` when
 //     dignity_loss_percentage > 80.
@@ -434,12 +438,36 @@ export function attachDeterministicStep(menu, rawRisk = [], unknownCondition = [
   return menu;
 }
 
-// Keep only the LLM-flagged items that the local denylist also flags.
-// The LLM is an advisor, never the authority: expired/stale/sad food is
-// still food. Returns [] for non-array input.
-export function filterLlmUnsafeItems(items) {
+// Keep only the LLM-flagged items that the local denylist also flags
+// AND that match an ingredient the user actually sent. The LLM is an
+// advisor, never the authority: expired/stale/sad food is still food.
+// And a flagged name that matches no user ingredient is a
+// hallucination, never a reason to reject the whole input — the
+// model could return "battery" for a fridge that holds only cold
+// rice, and the old code rejected the rice. So a flagged item is
+// kept only when it BOTH matches the denylist AND its canonical
+// identity shares its words with an ingredient the user sent (a
+// subset either way — "battery" matches "2 aa batteries", "dish
+// soap" matches "dish soap"). A brand name the denylist does not
+// know is a denylist gap, not a reason to trust the model.
+// Returns [] for non-array input.
+export function filterLlmUnsafeItems(items, ingredients = []) {
   if (!Array.isArray(items)) return [];
-  return items.filter((it) => localSafetyCheck([String(it)]).length > 0);
+  const inputWordSets = (Array.isArray(ingredients) ? ingredients : [])
+    .map((ing) => new Set(coreIdentity(ing).split(' ').filter(Boolean)));
+  return items.filter((it) => {
+    const item = String(it);
+    if (localSafetyCheck([item]).length === 0) return false;
+    const flagWords = coreIdentity(item).split(' ').filter(Boolean);
+    if (!flagWords.length) return false;
+    const flagSet = new Set(flagWords);
+    return inputWordSets.some((ingWords) => {
+      if (!ingWords.size) return false;
+      const flagInIng = flagWords.every((w) => ingWords.has(w));
+      const ingInFlag = [...ingWords].every((w) => flagSet.has(w));
+      return flagInIng || ingInFlag;
+    });
+  });
 }
 
 const SADNESS = [
@@ -721,7 +749,7 @@ export async function generateMenu({ ingredients: rawIngredients, lang = 'en', s
       if (res.ok && res.text) {
         safetyVia = 'openrouter/free';
         const parsed = extractJsonObject(res.text) || {};
-        const confirmed = filterLlmUnsafeItems(parsed.unsafe_items);
+        const confirmed = filterLlmUnsafeItems(parsed.unsafe_items, ingredients);
         if (parsed.safe === false && confirmed.length) {
           safetyReason = parsed.reason || `Refused by OpenRouter safety check: ${confirmed.join(', ')}`;
         }

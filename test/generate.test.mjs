@@ -72,11 +72,28 @@ test('1c — local fallback menu is long and narrative, not a one-line template'
 test('1b — LLM safety verdict cannot expand the denylist (Sprite 2026-11-27 regression)', () => {
   // The live OpenRouter classifier rejected "expired yogurt" as unsafe and
   // broke test 3 on the Sprite. Expired/stale food is still food.
-  assert.deepEqual(filterLlmUnsafeItems(['expired yogurt']), []);
-  assert.deepEqual(filterLlmUnsafeItems(['expired yogurt', 'cold rice']), []);
-  assert.deepEqual(filterLlmUnsafeItems(['2 AA batteries', 'cold rice']), ['2 AA batteries']);
-  assert.deepEqual(filterLlmUnsafeItems(['dish soap', 'cold rice']), ['dish soap']);
+  // The second argument is the user's actual input: a flagged item is
+  // only kept when it matches an ingredient the user sent.
+  assert.deepEqual(filterLlmUnsafeItems(['expired yogurt'], ['expired yogurt']), []);
+  assert.deepEqual(filterLlmUnsafeItems(['expired yogurt', 'cold rice'], ['expired yogurt', 'cold rice']), []);
+  assert.deepEqual(filterLlmUnsafeItems(['2 AA batteries', 'cold rice'], ['2 AA batteries', 'cold rice']), ['2 AA batteries']);
+  assert.deepEqual(filterLlmUnsafeItems(['dish soap', 'cold rice'], ['dish soap', 'cold rice']), ['dish soap']);
   assert.deepEqual(filterLlmUnsafeItems(null), []);
+});
+
+test('1c — the LLM cannot reject food it hallucinated (audit v28)', () => {
+  // The model could return "battery" for a fridge that holds only cold
+  // rice, and the old code rejected the rice. A flagged name that
+  // matches no user ingredient is a hallucination, never a reason to
+  // reject the whole input.
+  assert.deepEqual(filterLlmUnsafeItems(['battery'], ['cold rice', 'stale bread']), [], 'a hallucinated battery does not reject safe food');
+  assert.deepEqual(filterLlmUnsafeItems(['dish soap'], ['cold rice']), [], 'a hallucinated soap does not reject safe food');
+  assert.deepEqual(filterLlmUnsafeItems(['battery', 'bleach'], ['cold rice']), [], 'two hallucinations do not reject safe food');
+  // But a flagged name that IS in the input is still confirmed — even
+  // when the model shortens it ("battery" for "2 AA batteries").
+  assert.deepEqual(filterLlmUnsafeItems(['battery'], ['2 AA batteries']), ['battery']);
+  assert.deepEqual(filterLlmUnsafeItems(['dish soap'], ['dish soap', 'cold rice']), ['dish soap']);
+  assert.deepEqual(filterLlmUnsafeItems(['2 AA batteries'], ['2 AA batteries', 'cold rice']), ['2 AA batteries']);
 });
 
 test('2 — menu jebakan ditolak safety gate: 2 AA batteries, cold rice, dish soap', async () => {
