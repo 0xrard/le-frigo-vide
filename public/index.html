@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Le Frigo Vide — Chef Jean-Paul</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <h1>Le Frigo Vide</h1>
+    <p class="tagline" id="tagline">A personal culinary agent. The fridge is empty. The chef is not impressed.</p>
+  </div>
+  <button id="lang-toggle" type="button" aria-label="Toggle language EN / ID">EN / ID</button>
+</header>
+
+<main class="layout">
+  <!-- LEFT: Michelin-style menu, double frame -->
+  <section class="menu-panel" aria-label="Menu">
+    <div class="menu-frame-outer">
+      <div class="menu-frame-inner">
+        <p class="menu-kicker" id="menu-kicker">Bistro · Paris · Depuis le frigo</p>
+        <h2 id="menu-title">Le Frigo Vide</h2>
+        <p class="menu-subtitle" id="menu-subtitle">Tell the chef what is left. He will do the rest, reluctantly.</p>
+
+        <label class="field-label" for="ingredients-input" id="ingredients-label">What is in the fridge?</label>
+        <textarea id="ingredients-input" rows="3" placeholder="cold rice, one egg, wilted lettuce">cold rice, one egg, wilted lettuce</textarea>
+
+        <div class="presets" aria-label="Presets">
+          <button class="preset-btn" id="preset-1" type="button" data-ingredients="cold rice, one egg, wilted lettuce">1 — Cold rice &amp; egg</button>
+          <button class="preset-btn" id="preset-2" type="button" data-ingredients="stale bread, cheese, half an onion">2 — Stale bread &amp; cheese</button>
+          <button class="preset-btn" id="preset-3" type="button" data-ingredients="expired yogurt, cold rice, wilted lettuce, stale bread, one sad pickle">3 — The Lowest Point</button>
+          <button class="preset-btn preset-trap" id="preset-trap" type="button" data-ingredients="2 AA batteries, cold rice, dish soap">4 — Trap: batteries &amp; soap</button>
+        </div>
+
+        <button id="generate-btn" type="button">Ask Chef Jean-Paul</button>
+        <p class="status-line" id="status-line" role="status"></p>
+
+        <div id="rejection-box" class="rejection-box" hidden>
+          <h3 id="rejection-title">Refused.</h3>
+          <p id="rejection-text"></p>
+        </div>
+
+        <div id="menu-result" hidden>
+          <ol id="courses-list" class="courses-list"></ol>
+          <p id="chef-note" class="chef-note"></p>
+          <blockquote>
+            <p id="quote-text"></p>
+            <cite id="quote-author"></cite>
+          </blockquote>
+          <p class="dread"><span id="dread-label">Global Dread Pairing:</span> <span id="dread-text"></span> <small id="dread-via"></small></p>
+          <p class="recurring"><span id="recurring-label">Recurring culprit:</span> <span id="recurring-text">—</span></p>
+          <p id="checkpoint-note" class="checkpoint-note" hidden></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: thermal receipt + Gateway X-Ray -->
+  <aside class="side-panel" aria-label="Receipt and gateway status">
+    <section class="receipt" aria-label="Thermal receipt">
+      <h2 id="receipt-title">Struk Dosa Kuliner</h2>
+      <p class="receipt-sub">Culinary Sin Receipt</p>
+      <div class="dignity">
+        <span id="dignity-label">Dignity loss</span>
+        <strong id="dignity-value">—</strong>
+      </div>
+      <div class="dignity-track"><div id="dignity-bar" class="dignity-bar" style="width:0%"></div></div>
+      <div id="receipt-box">
+        <pre id="receipt-content">No meal yet.
+The receipt prints itself
+after the chef speaks.</pre>
+      </div>
+      <button id="archive-btn" type="button" disabled>Archive receipt to Box</button>
+      <p class="hint" id="archive-hint">Box upload runs only when the Box connector is installed; otherwise the receipt downloads locally.</p>
+    </section>
+
+    <section class="xray" aria-label="Gateway X-Ray">
+      <h2 id="xray-title">Gateway X-Ray</h2>
+      <p><span id="raw-keys-label">Raw API keys in env:</span> <strong id="raw-keys">—</strong></p>
+      <p><span id="gateway-label">Sprites Gateway:</span> <span id="gateway-status">—</span></p>
+      <ul id="connector-list" class="connector-list"></ul>
+      <button id="refresh-connected" type="button">Refresh status</button>
+      <p><a href="/connected" id="connected-link">Open /connected</a> · <a href="/connected?format=json" id="connected-json-link">JSON</a></p>
+    </section>
+
+    <section class="history" aria-label="History">
+      <h2 id="history-title">Recent meals</h2>
+      <ul id="history-list" class="history-list"><li>No meals yet.</li></ul>
+    </section>
+  </aside>
+</main>
+
+<footer><p>Le Frigo Vide · Fly.io Hacksgiving 2026 · Node.js, zero npm dependencies, zero API keys in env. Chef Jean-Paul does not use emoji.</p></footer>
+<script src="/app.js" type="module"></script>
+</body>
+</html>
